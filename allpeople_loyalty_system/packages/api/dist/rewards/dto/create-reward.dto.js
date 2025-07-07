@@ -11,10 +11,14 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CreateRewardDto = void 0;
 const class_validator_1 = require("class-validator");
+const reward_entity_1 = require("../reward.entity");
 class CreateRewardDto {
     name;
+    type;
     description;
-    points_cost;
+    cost_in_points;
+    stock;
+    is_active;
 }
 exports.CreateRewardDto = CreateRewardDto;
 __decorate([
@@ -23,13 +27,27 @@ __decorate([
     __metadata("design:type", String)
 ], CreateRewardDto.prototype, "name", void 0);
 __decorate([
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], CreateRewardDto.prototype, "type", void 0);
+__decorate([
     (0, class_validator_1.IsString)(),
-    (0, class_validator_1.IsNotEmpty)(),
+    (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
 ], CreateRewardDto.prototype, "description", void 0);
 __decorate([
     (0, class_validator_1.IsNumber)(),
-    (0, class_validator_1.Min)(1),
+    (0, class_validator_1.Min)(0),
     __metadata("design:type", Number)
-], CreateRewardDto.prototype, "points_cost", void 0);
+], CreateRewardDto.prototype, "cost_in_points", void 0);
+__decorate([
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", Number)
+], CreateRewardDto.prototype, "stock", void 0);
+__decorate([
+    (0, class_validator_1.IsBoolean)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", Boolean)
+], CreateRewardDto.prototype, "is_active", void 0);
 //# sourceMappingURL=create-reward.dto.js.map

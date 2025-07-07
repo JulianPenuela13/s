@@ -12,14 +12,15 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuditLog = void 0;
 const typeorm_1 = require("typeorm");
 const user_entity_1 = require("../users/user.entity");
-const empresa_entity_1 = require("../empresas/empresa.entity");
+const empresa_entity_1 = require("../empresas/entities/empresa.entity");
+const typeorm_2 = require("typeorm");
 let AuditLog = class AuditLog {
     id;
     user;
     action;
     details;
-    empresa_id;
     empresa;
+    empresa_id;
     created_at;
 };
 exports.AuditLog = AuditLog;
@@ -40,14 +41,14 @@ __decorate([
     __metadata("design:type", Object)
 ], AuditLog.prototype, "details", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'int' }),
-    __metadata("design:type", Number)
-], AuditLog.prototype, "empresa_id", void 0);
-__decorate([
-    (0, typeorm_1.ManyToOne)(() => empresa_entity_1.Empresa),
-    (0, typeorm_1.JoinColumn)({ name: 'empresa_id' }),
+    (0, typeorm_1.ManyToOne)(() => empresa_entity_1.Empresa, { nullable: false, onDelete: 'CASCADE' }),
+    (0, typeorm_2.JoinColumn)({ name: 'empresa_id' }),
     __metadata("design:type", empresa_entity_1.Empresa)
 ], AuditLog.prototype, "empresa", void 0);
+__decorate([
+    (0, typeorm_1.Column)(),
+    __metadata("design:type", Number)
+], AuditLog.prototype, "empresa_id", void 0);
 __decorate([
     (0, typeorm_1.CreateDateColumn)({ type: 'timestamptz' }),
     __metadata("design:type", Date)

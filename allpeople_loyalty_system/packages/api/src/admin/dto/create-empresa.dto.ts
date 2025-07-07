@@ -1,4 +1,6 @@
-import { IsString, IsNotEmpty, IsOptional } from 'class-validator';
+// packages/api/src/admin/dto/create-empresa.dto.ts
+
+import { IsString, IsNotEmpty } from 'class-validator';
 
 export class CreateEmpresaDto {
   @IsString()
@@ -6,6 +8,6 @@ export class CreateEmpresaDto {
   nombre_empresa: string;
 
   @IsString()
-  @IsOptional()
-  plan_suscripcion?: string;
+  @IsNotEmpty()
+  plan_suscripcion: string;
 }

@@ -12,6 +12,7 @@ var ContingencyService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ContingencyService = void 0;
 const common_1 = require("@nestjs/common");
+const Papa = require("papaparse");
 const clients_service_1 = require("../clients/clients.service");
 const purchases_service_1 = require("../purchases/purchases.service");
 let ContingencyService = ContingencyService_1 = class ContingencyService {
@@ -22,29 +23,58 @@ let ContingencyService = ContingencyService_1 = class ContingencyService {
         this.clientsService = clientsService;
         this.purchasesService = purchasesService;
     }
-    async findClientByDocument(documentId, empresaId) {
-        const clientsInTenant = await this.clientsService.findAll(empresaId);
-        return clientsInTenant.find(client => client.document_id === documentId);
-    }
-    async processContingency(Cedula, Valor, empresaId) {
-        this.logger.log(`Procesando contingencia para cédula: ${Cedula} en empresa ${empresaId}`);
-        let client = await this.findClientByDocument(Cedula, empresaId);
-        if (!client) {
-            this.logger.log(`Cliente con cédula ${Cedula} no encontrado, creando uno nuevo.`);
-            const newClientData = {
-                document_id: Cedula,
-                full_name: 'Cliente de Contingencia',
-                phone_number: '0000000000',
-            };
-            client = await this.clientsService.create(newClientData, empresaId);
+    async processContingencyFile(fileBuffer, actor) {
+        const fileContent = fileBuffer.toString('utf-8');
+        const results = { processed: 0, failed: 0, errors: [] };
+        const parsed = Papa.parse(fileContent, {
+            header: true,
+            skipEmptyLines: true,
+        });
+        for (const row of parsed.data) {
+            try {
+                if (typeof row !== 'object' || row === null || Object.values(row).every(v => !v)) {
+                    continue;
+                }
+                const { Cedula, Valor, NombreCompleto, Telefono, FechaNacimiento } = row;
+                if (!Cedula || !Valor) {
+                    throw new common_1.BadRequestException(`Fila inválida, faltan datos de Cedula o Valor: ${JSON.stringify(row)}`);
+                }
+                let client = await this.clientsService.findOneByDocument(Cedula, actor);
+                if (!client) {
+                    this.logger.log(`Cliente con documento ${Cedula} no encontrado en empresa ${actor.empresaId}. Intentando crear...`);
+                    if (!NombreCompleto || !Telefono) {
+                        throw new common_1.BadRequestException(`Cliente nuevo con cédula ${Cedula} no tiene NombreCompleto y Telefono.`);
+                    }
+                    const cleanTelefono = String(Telefono).replace(/\D/g, '');
+                    const newClientData = {
+                        document_id: Cedula,
+                        full_name: NombreCompleto,
+                        phone_number: cleanTelefono,
+                    };
+                    if (FechaNacimiento) {
+                        const parts = String(FechaNacimiento).split('/');
+                        if (parts.length === 3) {
+                            const [day, month, year] = parts;
+                            newClientData.birth_date = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                        }
+                    }
+                    client = await this.clientsService.create(newClientData, actor);
+                    this.logger.log(`Cliente ${client.full_name} creado para la empresa ${actor.empresaId}.`);
+                }
+                await this.purchasesService.createPurchase({
+                    client_document_id: client.document_id,
+                    amount: Number(Valor),
+                }, actor);
+                results.processed++;
+            }
+            catch (error) {
+                this.logger.error(`Error al procesar fila: ${JSON.stringify(row)}`, error.stack);
+                results.failed++;
+                results.errors.push(`Fila ${JSON.stringify(row)}: ${error.message}`);
+            }
         }
-        this.logger.log(`Registrando compra de ${Valor} para el cliente ${client.id}`);
-        await this.purchasesService.create({
-            client_id: client.id,
-            amount: parseFloat(Valor),
-        }, empresaId);
-        this.logger.log(`Contingencia para cédula ${Cedula} procesada exitosamente.`);
-        return { success: true, clientId: client.id };
+        this.logger.log(`Archivo de contingencia para empresa ${actor.empresaId} procesado: ${results.processed} exitosos, ${results.failed} fallidos.`);
+        return results;
     }
 };
 exports.ContingencyService = ContingencyService;

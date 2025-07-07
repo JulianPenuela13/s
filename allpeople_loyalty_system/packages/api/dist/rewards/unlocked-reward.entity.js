@@ -14,14 +14,15 @@ const typeorm_1 = require("typeorm");
 const client_entity_1 = require("../clients/client.entity");
 const reward_entity_1 = require("./reward.entity");
 const loyalty_strategy_entity_1 = require("../loyalty-engine/loyalty-strategy.entity");
-const empresa_entity_1 = require("../empresas/empresa.entity");
+const empresa_entity_1 = require("../empresas/entities/empresa.entity");
+const typeorm_2 = require("typeorm");
 let UnlockedReward = class UnlockedReward {
     id;
     client;
     reward;
     unlocked_at;
-    empresa_id;
     empresa;
+    empresa_id;
     strategy;
 };
 exports.UnlockedReward = UnlockedReward;
@@ -42,14 +43,14 @@ __decorate([
     __metadata("design:type", Date)
 ], UnlockedReward.prototype, "unlocked_at", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'int' }),
-    __metadata("design:type", Number)
-], UnlockedReward.prototype, "empresa_id", void 0);
-__decorate([
-    (0, typeorm_1.ManyToOne)(() => empresa_entity_1.Empresa),
-    (0, typeorm_1.JoinColumn)({ name: 'empresa_id' }),
+    (0, typeorm_1.ManyToOne)(() => empresa_entity_1.Empresa, { nullable: false, onDelete: 'CASCADE' }),
+    (0, typeorm_2.JoinColumn)({ name: 'empresa_id' }),
     __metadata("design:type", empresa_entity_1.Empresa)
 ], UnlockedReward.prototype, "empresa", void 0);
+__decorate([
+    (0, typeorm_1.Column)(),
+    __metadata("design:type", Number)
+], UnlockedReward.prototype, "empresa_id", void 0);
 __decorate([
     (0, typeorm_1.ManyToOne)(() => loyalty_strategy_entity_1.LoyaltyStrategy, { nullable: true, onDelete: 'SET NULL' }),
     __metadata("design:type", loyalty_strategy_entity_1.LoyaltyStrategy)

@@ -27,6 +27,7 @@ let AuditService = class AuditService {
             user: { id: actor.userId },
             action,
             details,
+            empresa_id: actor.empresaId,
         });
         await this.auditRepository.save(logEntry);
     }

@@ -8,36 +8,54 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var AuthService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuthService = void 0;
 const common_1 = require("@nestjs/common");
 const users_service_1 = require("../users/users.service");
 const jwt_1 = require("@nestjs/jwt");
 const bcrypt = require("bcrypt");
-let AuthService = class AuthService {
+let AuthService = AuthService_1 = class AuthService {
     usersService;
     jwtService;
+    logger = new common_1.Logger(AuthService_1.name);
     constructor(usersService, jwtService) {
         this.usersService = usersService;
         this.jwtService = jwtService;
     }
     async validateUser(email, pass) {
-        const user = await this.usersService.findOneByEmail(email);
-        if (user && (await bcrypt.compare(pass, user.password_hash))) {
-            const { password_hash, ...result } = user;
-            return result;
+        const potentialUsers = await this.usersService.findForAuth(email);
+        if (!potentialUsers || potentialUsers.length === 0) {
+            return null;
+        }
+        for (const user of potentialUsers) {
+            const isMatch = await bcrypt.compare(pass, user.password_hash);
+            if (isMatch) {
+                const { password_hash, ...result } = user;
+                return result;
+            }
         }
         return null;
     }
     async login(user) {
-        const payload = { email: user.email, sub: user.id, role: user.role, empresaId: user.empresa_id };
+        const payload = {
+            userId: user.id,
+            rol: user.role.toLowerCase(),
+            empresaId: user.empresa_id
+        };
+        const accessToken = this.jwtService.sign(payload);
+        this.logger.log('--- Generando Token JWT ---');
+        this.logger.log(`Usuario: ${user.email}, Rol del objeto User: ${user.role}`);
+        this.logger.log('Payload del Token:', payload);
+        this.logger.log(`Token generado: ${accessToken}`);
+        this.logger.log('---------------------------');
         return {
-            access_token: this.jwtService.sign(payload),
+            access_token: accessToken,
         };
     }
 };
 exports.AuthService = AuthService;
-exports.AuthService = AuthService = __decorate([
+exports.AuthService = AuthService = AuthService_1 = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [users_service_1.UsersService,
         jwt_1.JwtService])

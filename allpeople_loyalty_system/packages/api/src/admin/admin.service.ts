@@ -2,71 +2,89 @@
 
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { LoyaltyStrategy } from '../loyalty-engine/loyalty-strategy.entity';
 import { Repository } from 'typeorm';
-import { AuditLog } from '../audit/audit-log.entity';
-import { AuditService } from '../audit/audit.service';
-import { Actor } from '../audit/audit.service';
+import { Empresa } from '../empresas/entities/empresa.entity';
+import { UsersService } from '../users/users.service';
+import { Actor } from '../audit/actor.interface';
+import { LoyaltyStrategy } from '../loyalty-engine/loyalty-strategy.entity';
+import { UserRole } from '../users/user.entity'; // <-- 1. IMPORTAMOS EL ENUM UserRole
+
+const DEFAULT_STRATEGIES = [
+    { key: 'points', name: 'Puntos Tradicionales', is_active: true },
+    { key: 'frequency', name: 'Frecuencia de Compras', is_active: false },
+    { key: 'campaigns', name: 'Campañas de Puntos Múltiples', is_active: false },
+    { key: 'cashback', name: 'Cashback', is_active: false },
+    { key: 'secret_rewards', name: 'Recompensas Secretas', is_active: false },
+    { key: 'random_prizes', name: 'Premios Aleatorios', is_active: false },
+    { key: 'birthday', name: 'Campaña de Cumpleaños', is_active: false, settings: {
+        notification_days_before: 7,
+        message_template: '¡Feliz cumpleaños [NOMBRE]! 🎂 Queremos celebrarlo contigo. Pasa por nuestra tienda y recibe una sorpresa especial. ¡Te esperamos!'
+    }},
+];
 
 @Injectable()
 export class AdminService {
   constructor(
+    @InjectRepository(Empresa)
+    private empresaRepository: Repository<Empresa>,
     @InjectRepository(LoyaltyStrategy)
     private strategyRepository: Repository<LoyaltyStrategy>,
-    @InjectRepository(AuditLog) 
-    private auditLogRepository: Repository<AuditLog>,
-    private auditService: AuditService,
+    private usersService: UsersService,
   ) {}
 
-  getStrategies() {
-    return this.strategyRepository.find({ order: { name: 'ASC' } });
+  async crearEmpresa(nombre: string, plan: string): Promise<Empresa> {
+    const nuevaEmpresa = this.empresaRepository.create({
+      nombre_empresa: nombre,
+      plan_suscripcion: plan,
+    });
+    const savedEmpresa = await this.empresaRepository.save(nuevaEmpresa);
+
+    for (const strategyData of DEFAULT_STRATEGIES) {
+        const newStrategy = this.strategyRepository.create({
+            ...strategyData,
+            empresa_id: savedEmpresa.id,
+        });
+        await this.strategyRepository.save(newStrategy);
+    }
+    
+    return savedEmpresa;
   }
 
-  // --- MÉTODO CORREGIDO ---
-  async toggleStrategy(id: string, isActive: boolean, actor: Actor) {
-    // 1. Buscamos la estrategia PRIMERO para obtener su nombre y asegurarnos de que existe.
-    const strategy = await this.strategyRepository.findOneBy({ id });
-    if (!strategy) {
-      throw new NotFoundException(`Estrategia con ID ${id} no encontrada.`);
+  async crearAdminParaEmpresa(empresaId: number, datosAdminDto: any, actor: Actor) {
+    const empresa = await this.empresaRepository.findOneBy({ id: empresaId });
+    if (!empresa) {
+      throw new NotFoundException(`La empresa con ID ${empresaId} no fue encontrada.`);
     }
 
-    // 2. Actualizamos el estado en la base de datos.
-    await this.strategyRepository.update(id, { is_active: isActive });
+    const adminUserData = {
+      full_name: datosAdminDto.full_name,
+      email: datosAdminDto.email,
+      password: datosAdminDto.password,
+      // --- LA CORRECCIÓN DEFINITIVA ESTÁ AQUÍ ---
+      // Usamos el valor del enum en lugar de un string simple.
+      role: UserRole.ADMIN,
+    };
 
-    // 3. Registramos el log con el nombre de la estrategia.
-    await this.auditService.logAction(actor, 'STRATEGY_TOGGLE', { 
-        strategyName: strategy.name, 
-        isActive 
-    });
-
-    return { success: true };
+    return this.usersService.create(adminUserData, actor);
   }
 
-  // --- MÉTODO CORREGIDO ---
-  async updateStrategySettings(id: string, settings: any, actor: Actor) {
-    // 1. Buscamos la estrategia PRIMERO.
-    const strategy = await this.strategyRepository.findOneBy({ id });
-    if (!strategy) {
-      throw new NotFoundException(`Estrategia con ID ${id} no encontrada.`);
+  async findAllEmpresas(): Promise<Empresa[]> {
+    return this.empresaRepository.find({ order: { nombre_empresa: 'ASC' } });
+  }
+
+  async actualizarEstadoSuscripcion(id: number, nuevoEstado: 'activa' | 'suspendida') {
+    const result = await this.empresaRepository.update(id, { estado_suscripcion: nuevoEstado });
+    if (result.affected === 0) {
+      throw new NotFoundException(`Empresa con ID ${id} no encontrada.`);
     }
-
-    const newSettings = { ...strategy.settings, ...settings };
-    await this.strategyRepository.update(id, { settings: newSettings });
-
-    // 2. Registramos el log con el nombre.
-    await this.auditService.logAction(actor, 'STRATEGY_SETTINGS_UPDATE', { 
-        strategyName: strategy.name, 
-        newSettings 
-    });
-
-    return { success: true };
+    return { message: `Empresa ${id} actualizada al estado '${nuevoEstado}'.` };
   }
 
-  getAuditLogs() {
-    return this.auditLogRepository.find({
-        relations: ['user'],
-        order: { created_at: 'DESC' },
-        take: 100,
-    });
+  async eliminarEmpresa(id: number): Promise<{ message: string }> {
+    const result = await this.empresaRepository.delete(id);
+    if (result.affected === 0) {
+      throw new NotFoundException(`Empresa con ID ${id} no encontrada.`);
+    }
+    return { message: `Empresa con ID ${id} y todos sus datos han sido eliminados.` };
   }
 }

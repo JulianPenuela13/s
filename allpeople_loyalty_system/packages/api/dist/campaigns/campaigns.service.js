@@ -30,15 +30,27 @@ let CampaignsService = CampaignsService_1 = class CampaignsService {
         this.clientRepo = clientRepo;
         this.whatsappService = whatsappService;
     }
-    async announcePointsCampaign() {
-        const campaign = await this.strategyRepo.findOneBy({ key: 'campaigns', is_active: true });
+    async announcePointsCampaign(actor) {
+        const empresaId = actor.empresaId;
+        const campaign = await this.strategyRepo.findOneBy({
+            key: 'campaigns',
+            is_active: true,
+            empresa_id: empresaId,
+        });
         if (!campaign) {
-            throw new common_1.NotFoundException('No hay una campaña de puntos múltiples activa para anunciar.');
+            throw new common_1.NotFoundException('No hay una campaña de puntos múltiples activa para anunciar en su empresa.');
         }
-        const allClients = await this.clientRepo.find();
-        this.logger.log(`Found ${allClients.length} clients to notify about the campaign.`);
-        this.sendNotificationsInBackground(allClients, campaign.settings);
-        return { message: `El anuncio de la campaña ha sido enviado a la cola para ${allClients.length} clientes.` };
+        const clientsOfThisCompany = await this.clientRepo.find({
+            where: {
+                empresa_id: empresaId,
+            },
+        });
+        if (clientsOfThisCompany.length === 0) {
+            return { message: 'Su empresa no tiene clientes registrados para notificar.' };
+        }
+        this.logger.log(`Encontrados ${clientsOfThisCompany.length} clientes de la empresa #${empresaId} para notificar.`);
+        this.sendNotificationsInBackground(clientsOfThisCompany, campaign.settings);
+        return { message: `El anuncio de la campaña ha sido enviado a la cola para ${clientsOfThisCompany.length} clientes.` };
     }
     async sendNotificationsInBackground(clients, settings) {
         for (const client of clients) {
@@ -46,10 +58,10 @@ let CampaignsService = CampaignsService_1 = class CampaignsService {
                 await this.whatsappService.sendCampaignAnnouncementMessage(client, settings);
             }
             catch (error) {
-                this.logger.error(`Failed to send campaign announcement to client ${client.id}`, error);
+                this.logger.error(`Falló el envío del anuncio de campaña al cliente ${client.id}`, error.stack);
             }
         }
-        this.logger.log('Finished sending all campaign announcements.');
+        this.logger.log('Finalizado el envío de todos los anuncios de campaña.');
     }
 };
 exports.CampaignsService = CampaignsService;

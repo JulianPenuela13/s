@@ -7,6 +7,6 @@ import { AuditService } from './audit.service';
 @Module({
   imports: [TypeOrmModule.forFeature([AuditLog])],
   providers: [AuditService],
-  exports: [AuditService], // Lo exportamos para que otros módulos lo puedan usar
+  exports: [AuditService], 
 })
 export class AuditModule {}

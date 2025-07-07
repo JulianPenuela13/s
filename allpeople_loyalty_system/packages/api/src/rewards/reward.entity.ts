@@ -1,11 +1,11 @@
 // packages/api/src/rewards/reward.entity.ts
 
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Empresa } from '../empresas/entities/empresa.entity'; // <-- 1. IMPORTAMOS LA ENTIDAD EMPRESA
 
-// Definimos los tipos de recompensa que pueden existir
 export enum RewardType {
-  STANDARD = 'standard', // Visible para todos
-  SECRET = 'secret',     // Oculta hasta ser desbloqueada
+  STANDARD = 'standard',
+  SECRET = 'secret',
 }
 
 @Entity('rewards')
@@ -34,4 +34,13 @@ export class Reward {
 
   @Column({ default: true })
   is_active: boolean;
+
+ 
+  @ManyToOne(() => Empresa, { nullable: false, onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'empresa_id' })
+  empresa: Empresa;
+
+  @Column()
+  empresa_id: number;
+  
 }

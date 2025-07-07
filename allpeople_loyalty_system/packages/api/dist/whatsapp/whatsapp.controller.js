@@ -15,65 +15,90 @@ var WhatsappController_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WhatsappController = void 0;
 const common_1 = require("@nestjs/common");
-const twilio_service_1 = require("../twilio/twilio.service");
+const whatsapp_service_1 = require("./whatsapp.service");
 const clients_service_1 = require("../clients/clients.service");
-const rewards_service_1 = require("../rewards/rewards.service");
+const typeorm_1 = require("@nestjs/typeorm");
+const empresa_entity_1 = require("../empresas/entities/empresa.entity");
+const typeorm_2 = require("typeorm");
 let WhatsappController = WhatsappController_1 = class WhatsappController {
-    twilioService;
+    whatsappService;
     clientsService;
-    rewardsService;
+    empresaRepository;
     logger = new common_1.Logger(WhatsappController_1.name);
-    constructor(twilioService, clientsService, rewardsService) {
-        this.twilioService = twilioService;
+    constructor(whatsappService, clientsService, empresaRepository) {
+        this.whatsappService = whatsappService;
         this.clientsService = clientsService;
-        this.rewardsService = rewardsService;
+        this.empresaRepository = empresaRepository;
     }
-    async handleIncomingMessage(body) {
-        const fromNumber = body.From.replace('whatsapp:', '');
-        const message = body.Body.toLowerCase().trim();
-        this.logger.log(`Mensaje recibido de ${fromNumber}: "${message}"`);
-        const client = await this.clientsService.findOneByPhoneAcrossTenants(fromNumber);
+    testEndpoint() {
+        this.logger.log('¡El endpoint de prueba /whatsapp/test FUE LLAMADO CORRECTAMENTE!');
+        return { success: true, message: 'La conexión ngrok -> NestJS funciona perfectamente.' };
+    }
+    async handleIncomingMessage(body, res) {
+        const fromNumberWithPrefix = body.From || '';
+        const toTwilioNumberWithPrefix = body.To || '';
+        const messageBody = body.Body?.toLowerCase().trim() || '';
+        const fromNumber = fromNumberWithPrefix.replace(/\D/g, '');
+        const toTwilioNumber = toTwilioNumberWithPrefix.replace(/\D/g, '');
+        this.logger.log(`Incoming message to Twilio# ${toTwilioNumber} from ${fromNumber}`);
+        const empresa = await this.empresaRepository.findOneBy({ twilio_phone_number: toTwilioNumber });
+        if (!empresa) {
+            this.logger.error(`Mensaje recibido en un número de Twilio no asignado: ${toTwilioNumber}`);
+            return res.status(200).send();
+        }
+        const actor = { empresaId: empresa.id, rol: 'SYSTEM', userId: 0 };
+        const client = await this.clientsService.findOneByPhone(fromNumber, actor);
         if (!client) {
-            this.logger.log(`Cliente no encontrado para el número ${fromNumber}.`);
-            await this.twilioService.sendWhatsappMessage(fromNumber, 'Hola! No te encontramos en nuestro sistema. Por favor, regístrate en una de nuestras tiendas.');
-            return;
+            this.logger.warn(`Cliente con teléfono ${fromNumber} no encontrado para la empresa #${empresa.id}`);
+            await this.whatsappService.sendMessage(fromNumberWithPrefix, 'Hola! No te encontramos en nuestro sistema. Asegúrate de estar registrado con este número de WhatsApp.');
+            return res.status(200).send();
         }
-        const empresaId = client.empresa_id;
-        if (message === 'puntos') {
-            const summary = `Hola ${client.full_name}! Tienes ${client.points_balance} puntos acumulados.`;
-            await this.twilioService.sendWhatsappMessage(fromNumber, summary);
+        const clientFirstName = client.full_name.split(' ')[0];
+        if (messageBody === 'puntos' || messageBody === 'saldo') {
+            const summary = await this.clientsService.getClientSummary(client.document_id, actor);
+            const reply = `¡Hola ${clientFirstName}! Tu saldo actual es de *${summary.total_points}* puntos.`;
+            await this.whatsappService.sendMessage(fromNumberWithPrefix, reply);
         }
-        else if (message === 'recompensas') {
-            const rewards = await this.rewardsService.findAll(empresaId);
-            let rewardsMessage = 'Recompensas Disponibles:\n\n';
-            if (rewards.length > 0) {
-                rewards.forEach(r => {
-                    rewardsMessage += `🎁 ${r.name}\nCosto: ${r.points_cost} puntos\n\n`;
-                });
+        else if (messageBody === 'progreso') {
+            const progressSummary = await this.clientsService.getClientProgressSummary(client.id, actor);
+            if (!progressSummary || progressSummary.length === 0) {
+                await this.whatsappService.sendMessage(fromNumberWithPrefix, `¡Hola ${clientFirstName}! Actualmente no estás participando en ninguna campaña de progreso por compras.`);
             }
             else {
-                rewardsMessage = 'Actualmente no hay recompensas disponibles en tu programa.';
+                let reply = `¡Hola ${clientFirstName}! Este es tu progreso actual:\n`;
+                progressSummary.forEach(p => {
+                    reply += `\n- Para *${p.strategy_name}*, llevas *${p.current_step} de ${p.target_step}* compras.`;
+                });
+                await this.whatsappService.sendMessage(fromNumberWithPrefix, reply);
             }
-            await this.twilioService.sendWhatsappMessage(fromNumber, rewardsMessage);
         }
         else {
-            const defaultMessage = `Hola ${client.full_name}!\n\nEnvía *puntos* para ver tu saldo.\nEnvía *recompensas* para ver los premios disponibles.`;
-            await this.twilioService.sendWhatsappMessage(fromNumber, defaultMessage);
+            const reply = `¡Hola ${clientFirstName}! Envía la palabra *puntos* para ver tu saldo o *progreso* para ver tu avance en nuestras campañas.`;
+            await this.whatsappService.sendMessage(fromNumberWithPrefix, reply);
         }
+        res.status(200).send();
     }
 };
 exports.WhatsappController = WhatsappController;
 __decorate([
-    (0, common_1.Post)('inbound'),
-    __param(0, (0, common_1.Body)()),
+    (0, common_1.Get)('test'),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], WhatsappController.prototype, "testEndpoint", null);
+__decorate([
+    (0, common_1.Post)('incoming'),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], WhatsappController.prototype, "handleIncomingMessage", null);
 exports.WhatsappController = WhatsappController = WhatsappController_1 = __decorate([
     (0, common_1.Controller)('whatsapp'),
-    __metadata("design:paramtypes", [twilio_service_1.TwilioService,
+    __param(2, (0, typeorm_1.InjectRepository)(empresa_entity_1.Empresa)),
+    __metadata("design:paramtypes", [whatsapp_service_1.WhatsappService,
         clients_service_1.ClientsService,
-        rewards_service_1.RewardsService])
+        typeorm_2.Repository])
 ], WhatsappController);
 //# sourceMappingURL=whatsapp.controller.js.map

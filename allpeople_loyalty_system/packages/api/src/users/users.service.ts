@@ -1,14 +1,17 @@
-import { Injectable, OnModuleInit, Logger, NotFoundException, ConflictException } from '@nestjs/common';
+// packages/api/src/users/users.service.ts
+import { Injectable, Logger, NotFoundException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User, UserRole } from './user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { AuditService } from '../audit/audit.service';
-import { Actor } from '../audit/audit.service'
+import { Actor } from '../audit/actor.interface';
+
+type SafeUser = Omit<User, 'password_hash' | 'hashPassword'>;
 
 @Injectable()
-export class UsersService implements OnModuleInit {
+export class UsersService {
   private readonly logger = new Logger(UsersService.name);
 
   constructor(
@@ -17,93 +20,98 @@ export class UsersService implements OnModuleInit {
     private auditService: AuditService,
   ) {}
 
-  async onModuleInit() {
-    await this.seedInitialUsers();
-  }
-
-  private async seedInitialUsers() {
-    const adminExists = await this.usersRepository.findOneBy({ role: UserRole.ADMIN });
-    if (!adminExists) {
-      this.logger.log('Admin user not found, creating one...');
-      const adminUser = this.usersRepository.create({ email: 'admin@allpeople.com', password_hash: 'strongpassword', full_name: 'Admin General', role: UserRole.ADMIN });
-      await this.usersRepository.save(adminUser);
-      this.logger.log('Admin user created successfully.');
-    }
-    const cashierExists = await this.usersRepository.findOneBy({ role: UserRole.CASHIER });
-    if (!cashierExists) {
-        this.logger.log('Cashier user not found, creating one...');
-        const cashierUser = this.usersRepository.create({ email: 'cajero@allpeople.com', password_hash: 'password123', full_name: 'Cajero de Tienda', role: UserRole.CASHIER });
-        await this.usersRepository.save(cashierUser);
-        this.logger.log('Cashier user created successfully.');
-    }
-  }
-  
-  async create(createUserDto: CreateUserDto, actor: Actor): Promise<Omit<User, 'password_hash' | 'hashPassword'>> {
-    const { email, password, ...restOfDto } = createUserDto;
-
-    const existingUser = await this.findOneByEmail(email);
+  async create(createUserDto: CreateUserDto & { empresa_id?: number }, actor: Actor): Promise<SafeUser> {
+    const { email, password, empresa_id, ...restOfDto } = createUserDto;
+    
+    // --- LA CORRECCIÓN DEFINITIVA ESTÁ AQUÍ ---
+    // Si se pasa una 'empresa_id' al crear (como lo hace el Super-Admin para un nuevo admin), se usa esa.
+    // Si no, se usa la 'empresaId' del actor que crea el usuario (como un Admin creando un Cajero).
+    const targetEmpresaId = empresa_id || actor.empresaId;
+    
+    // Buscamos si el email ya existe DENTRO DE LA EMPRESA CORRECTA.
+    const existingUser = await this.findOneByEmail(email, targetEmpresaId);
     if (existingUser) {
-      throw new ConflictException(`El email '${email}' ya está en uso.`);
+      throw new ConflictException(`El email '${email}' ya está en uso en esa empresa.`);
     }
 
     const user = this.usersRepository.create({
       ...restOfDto,
       email: email,
-      password_hash: password, 
+      password_hash: password,
+      empresa_id: targetEmpresaId, // <-- Se asigna la empresa correcta y definitiva
     });
     const savedUser = await this.usersRepository.save(user);
 
+    // El log de auditoría usa el actor que realizó la acción, lo cual es correcto.
     await this.auditService.logAction(actor, 'USER_CREATE', { createdUserId: savedUser.id, email: savedUser.email });
 
-    const { password_hash, ...result } = savedUser;
+    const { password_hash: _, ...result } = savedUser;
     return result;
   }
 
-
-  findAll(): Promise<User[]> {
+  findAll(actor: Actor): Promise<User[]> {
     return this.usersRepository.find({
-      select: ['id', 'email', 'full_name', 'role', 'created_at'],
+      select: ['id', 'email', 'full_name', 'role', 'created_at', 'empresa_id'],
+      where: { empresa_id: actor.empresaId },
       order: { full_name: 'ASC' },
     });
   }
 
-  async findOne(id: string): Promise<User> {
-    const user = await this.usersRepository.findOne({ where: { id }, select: ['id', 'email', 'full_name', 'role', 'created_at'] });
+  async findOne(id: string, actor: Actor): Promise<User> {
+    const user = await this.usersRepository.findOne({
+      where: { id: id, empresa_id: actor.empresaId },
+      select: ['id', 'email', 'full_name', 'role', 'created_at', 'empresa_id'],
+    });
     if (!user) {
-      throw new NotFoundException(`Usuario con ID "${id}" no encontrado.`);
+      throw new NotFoundException(`Usuario con ID "${id}" no encontrado en su empresa.`);
     }
     return user;
   }
   
-  findOneByEmail(email: string): Promise<User | null> {
-    return this.usersRepository.findOneBy({ email });
+  findOneByEmail(email: string, empresaId: number): Promise<User | null> {
+    return this.usersRepository.findOneBy({ email: email, empresa_id: empresaId });
   }
 
-  async update(id: string, updateUserDto: UpdateUserDto, actor: Actor): Promise<User> {
-    const userToUpdate = await this.findOne(id);
+  findForAuth(email: string): Promise<User[]> {
+    return this.usersRepository.find({ where: { email } });
+  }
+
+  async update(id: string, updateUserDto: UpdateUserDto, actor: Actor): Promise<SafeUser> {
+    await this.findOne(id, actor);
+    
     const { password, ...restOfDto } = updateUserDto;
     const payload: Partial<User> = restOfDto;
+
     if (password) {
       payload.password_hash = password;
     }
-    if (Object.keys(payload).length === 0) {
-      return this.findOne(id);
+
+    if (Object.keys(payload).length > 0) {
+      await this.usersRepository.update(id, payload);
     }
-    await this.findOne(id);
-    await this.usersRepository.update(id, payload);
+    
     await this.auditService.logAction(actor, 'USER_UPDATE', { 
-        updatedUserEmail: userToUpdate.email, // Usamos el email del usuario que encontramos
-        changes: updateUserDto 
+      updatedUserId: id,
+      changes: updateUserDto 
     });
-    return this.findOne(id);
+
+    const updatedUserEntity = await this.usersRepository.findOneBy({ id });
+    if (!updatedUserEntity) {
+      throw new NotFoundException(`El usuario con ID ${id} desapareció después de la actualización.`);
+    }
+    
+    const { password_hash, ...result } = updatedUserEntity;
+    return result;
   }
 
   async remove(id: string, actor: Actor): Promise<void> {
-    const userToDelete = await this.findOne(id);
+    const userToDelete = await this.findOne(id, actor);
     const result = await this.usersRepository.delete(id);
+
     if (result.affected === 0) {
       throw new NotFoundException(`Usuario con ID "${id}" no encontrado.`);
     }
+
     await this.auditService.logAction(actor, 'USER_DELETE', { deletedUserId: id, email: userToDelete.email });
   }
 }

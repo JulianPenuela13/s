@@ -9,11 +9,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.LoyaltyEngineModule = void 0;
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
+const points_transaction_entity_1 = require("./points-transaction.entity");
+const loyalty_strategy_entity_1 = require("./loyalty-strategy.entity");
 const loyalty_engine_service_1 = require("./loyalty-engine.service");
-const rule_entity_1 = require("../rules/rule.entity");
+const cashback_ledger_entity_1 = require("./cashback-ledger.entity");
+const client_progress_entity_1 = require("./client-progress.entity");
+const unlocked_reward_entity_1 = require("../rewards/unlocked-reward.entity");
 const reward_entity_1 = require("../rewards/reward.entity");
-const unlocked_reward_entity_1 = require("../unlocked-rewards/unlocked-reward.entity");
-const points_transaction_entity_1 = require("../points/points-transaction.entity");
 let LoyaltyEngineModule = class LoyaltyEngineModule {
 };
 exports.LoyaltyEngineModule = LoyaltyEngineModule;
@@ -21,10 +23,12 @@ exports.LoyaltyEngineModule = LoyaltyEngineModule = __decorate([
     (0, common_1.Module)({
         imports: [
             typeorm_1.TypeOrmModule.forFeature([
-                rule_entity_1.Rule,
-                reward_entity_1.Reward,
-                unlocked_reward_entity_1.UnlockedReward,
                 points_transaction_entity_1.PointsTransaction,
+                loyalty_strategy_entity_1.LoyaltyStrategy,
+                cashback_ledger_entity_1.CashbackLedger,
+                client_progress_entity_1.ClientProgress,
+                unlocked_reward_entity_1.UnlockedReward,
+                reward_entity_1.Reward,
             ]),
         ],
         providers: [loyalty_engine_service_1.LoyaltyEngineService],

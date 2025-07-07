@@ -13,21 +13,32 @@ exports.JwtStrategy = void 0;
 const common_1 = require("@nestjs/common");
 const passport_1 = require("@nestjs/passport");
 const passport_jwt_1 = require("passport-jwt");
+const config_1 = require("@nestjs/config");
 let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(passport_jwt_1.Strategy) {
-    constructor() {
+    configService;
+    constructor(configService) {
+        const secret = configService.get('JWT_SECRET');
+        if (!secret) {
+            throw new Error('JWT_SECRET no está definido en las variables de entorno. La aplicación no puede iniciarse de forma segura.');
+        }
         super({
             jwtFromRequest: passport_jwt_1.ExtractJwt.fromAuthHeaderAsBearerToken(),
             ignoreExpiration: false,
-            secretOrKey: 'SUPER_SECRET_KEY_CHANGE_IN_PROD',
+            secretOrKey: secret,
         });
+        this.configService = configService;
     }
     async validate(payload) {
-        return { userId: payload.sub, email: payload.email, role: payload.role, empresaId: payload.empresaId };
+        return {
+            userId: payload.userId,
+            rol: payload.rol,
+            empresaId: payload.empresaId,
+        };
     }
 };
 exports.JwtStrategy = JwtStrategy;
 exports.JwtStrategy = JwtStrategy = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [])
+    __metadata("design:paramtypes", [config_1.ConfigService])
 ], JwtStrategy);
 //# sourceMappingURL=jwt.strategy.js.map

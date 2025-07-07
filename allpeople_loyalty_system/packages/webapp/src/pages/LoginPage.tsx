@@ -1,9 +1,9 @@
 // packages/webapp/src/pages/LoginPage.tsx
 
 import React, { useState } from 'react';
-import axios from 'axios';
+import api from '../api/axiosConfig';
 
-const api = axios.create({ baseURL: 'http://localhost:3000' });
+
 
 // Añadimos una nueva prop para comunicar el éxito al componente padre (App)
 interface LoginPageProps {

@@ -1,4 +1,4 @@
 export declare class CreatePurchaseDto {
-    client_id: string;
+    client_document_id: string;
     amount: number;
 }

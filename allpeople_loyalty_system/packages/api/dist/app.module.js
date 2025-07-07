@@ -15,6 +15,7 @@ const schedule_1 = require("@nestjs/schedule");
 const typeorm_config_1 = require("./config/typeorm.config");
 const users_module_1 = require("./users/users.module");
 const auth_module_1 = require("./auth/auth.module");
+const strategies_module_1 = require("./strategies/strategies.module");
 const admin_module_1 = require("./admin/admin.module");
 const clients_module_1 = require("./clients/clients.module");
 const purchases_module_1 = require("./purchases/purchases.module");
@@ -42,6 +43,7 @@ exports.AppModule = AppModule = __decorate([
             typeorm_1.TypeOrmModule.forRootAsync(typeorm_config_1.typeOrmAsyncConfig),
             users_module_1.UsersModule,
             auth_module_1.AuthModule,
+            strategies_module_1.StrategiesModule,
             admin_module_1.AdminModule,
             clients_module_1.ClientsModule,
             purchases_module_1.PurchasesModule,

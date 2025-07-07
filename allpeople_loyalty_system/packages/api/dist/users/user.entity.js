@@ -12,12 +12,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.User = exports.UserRole = void 0;
 const typeorm_1 = require("typeorm");
 const bcrypt = require("bcrypt");
-const empresa_entity_1 = require("../empresas/empresa.entity");
+const empresa_entity_1 = require("../empresas/entities/empresa.entity");
 var UserRole;
 (function (UserRole) {
     UserRole["ADMIN"] = "admin";
     UserRole["SUPERVISOR"] = "supervisor";
     UserRole["CASHIER"] = "cashier";
+    UserRole["SUPER_ADMIN"] = "super_admin";
 })(UserRole || (exports.UserRole = UserRole = {}));
 let User = class User {
     id;
@@ -25,11 +26,13 @@ let User = class User {
     password_hash;
     role;
     full_name;
-    empresa_id;
     empresa;
+    empresa_id;
     created_at;
     async hashPassword() {
-        this.password_hash = await bcrypt.hash(this.password_hash, 10);
+        if (this.password_hash) {
+            this.password_hash = await bcrypt.hash(this.password_hash, 10);
+        }
     }
 };
 exports.User = User;
@@ -49,7 +52,6 @@ __decorate([
     (0, typeorm_1.Column)({
         type: 'enum',
         enum: UserRole,
-        default: UserRole.CASHIER,
     }),
     __metadata("design:type", String)
 ], User.prototype, "role", void 0);
@@ -58,14 +60,14 @@ __decorate([
     __metadata("design:type", String)
 ], User.prototype, "full_name", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'int', nullable: true }),
-    __metadata("design:type", Number)
-], User.prototype, "empresa_id", void 0);
-__decorate([
-    (0, typeorm_1.ManyToOne)(() => empresa_entity_1.Empresa, empresa => empresa.users),
+    (0, typeorm_1.ManyToOne)(() => empresa_entity_1.Empresa, { nullable: false, onDelete: 'CASCADE' }),
     (0, typeorm_1.JoinColumn)({ name: 'empresa_id' }),
     __metadata("design:type", empresa_entity_1.Empresa)
 ], User.prototype, "empresa", void 0);
+__decorate([
+    (0, typeorm_1.Column)(),
+    __metadata("design:type", Number)
+], User.prototype, "empresa_id", void 0);
 __decorate([
     (0, typeorm_1.CreateDateColumn)({ type: 'timestamptz' }),
     __metadata("design:type", Date)
@@ -77,6 +79,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], User.prototype, "hashPassword", null);
 exports.User = User = __decorate([
-    (0, typeorm_1.Entity)('users')
+    (0, typeorm_1.Entity)('users'),
+    (0, typeorm_1.Index)(['email', 'empresa_id'], { unique: true })
 ], User);
 //# sourceMappingURL=user.entity.js.map

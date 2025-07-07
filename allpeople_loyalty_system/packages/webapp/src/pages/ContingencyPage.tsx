@@ -2,10 +2,8 @@
 
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api/axiosConfig';
 
-const token = localStorage.getItem('authToken');
-const api = axios.create({ baseURL: 'http://localhost:3000', headers: { Authorization: `Bearer ${token}` } });
 
 export const ContingencyPage = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);

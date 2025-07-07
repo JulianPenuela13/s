@@ -1,46 +1,44 @@
 // packages/api/src/admin/admin.controller.ts
-import { Controller, Get, Patch, Param, Body, UseGuards, ParseUUIDPipe, Req } from '@nestjs/common';
+
+import { Controller, Get, Post, Body, Param, Patch, Delete, UseGuards, ParseIntPipe, Req } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
-import { User, UserRole } from '../users/user.entity';
-import { UpdateStrategySettingsDto } from './dto/update-strategy-settings.dto';
-import { Actor } from '../audit/audit.service';
+import { SuperAdminGuard } from '../auth/guards/super-admin.guard';
 
-@Controller('admin')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN)
+// --- CAMBIO DEFINITIVO ---
+@Controller('super-admin') // Cambiamos la ruta base para evitar conflictos
+// --- FIN DEL CAMBIO ---
+@UseGuards(JwtAuthGuard, SuperAdminGuard)
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
-  @Get('strategies')
-  getStrategies() {
-    return this.adminService.getStrategies();
+  @Get('empresas')
+  findAllEmpresas() {
+    return this.adminService.findAllEmpresas();
+  }
+  // ... (El resto del archivo se mantiene exactamente igual)
+  @Post('empresas')
+  crearNuevaEmpresa(@Body() body: { nombre_empresa: string; plan_suscripcion: string; twilio_phone_number?: string; wpp_session_name?: string; whatsapp_provider?: string; }) {
+    return this.adminService.crearEmpresa(body.nombre_empresa, body.plan_suscripcion);
   }
 
-  @Patch('strategies/:id/toggle')
-  toggleStrategy(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body('is_active') isActive: boolean,
-    @Req() req, // Obtenemos el objeto de la petición
-  ) {
-    const actor = req.user as Actor; // Extraemos el usuario que está logueado
-    return this.adminService.toggleStrategy(id, isActive, actor);
+  @Post('empresas/:id/crear-admin')
+  crearAdminParaEmpresa(@Param('id', ParseIntPipe) id: number, @Body() body: any, @Req() req: any) {
+    return this.adminService.crearAdminParaEmpresa(id, body, req.user);
   }
 
-  @Patch('strategies/:id/settings')
-  updateStrategySettings(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() updateDto: UpdateStrategySettingsDto,
-    @Req() req,
-  ) {
-    const actor = req.user as Actor;
-    return this.adminService.updateStrategySettings(id, updateDto.settings, actor);
+  @Patch('empresas/:id/suspender')
+  suspenderEmpresa(@Param('id', ParseIntPipe) id: number) {
+    return this.adminService.actualizarEstadoSuscripcion(id, 'suspendida');
   }
 
-  @Get('audit-logs')
-  getAuditLogs() {
-    return this.adminService.getAuditLogs();
+  @Patch('empresas/:id/reactivar')
+  reactivarEmpresa(@Param('id', ParseIntPipe) id: number) {
+    return this.adminService.actualizarEstadoSuscripcion(id, 'activa');
+  }
+
+  @Delete('empresas/:id')
+  eliminarEmpresa(@Param('id', ParseIntPipe) id: number) {
+    return this.adminService.eliminarEmpresa(id);
   }
 }

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api/axiosConfig';
 
 type RewardType = 'standard' | 'secret';
 interface Reward {
@@ -15,12 +15,6 @@ interface Reward {
   is_active: boolean;
 }
 type RewardDto = Omit<Reward, 'id'>;
-
-const token = localStorage.getItem('authToken');
-const api = axios.create({
-  baseURL: 'http://localhost:3000',
-  headers: { Authorization: `Bearer ${token}` },
-});
 
 const RewardForm = ({ reward, onSave, onCancel }: { reward: Reward | null, onSave: (data: Partial<RewardDto>) => void, onCancel: () => void }) => {
     const [formData, setFormData] = useState({

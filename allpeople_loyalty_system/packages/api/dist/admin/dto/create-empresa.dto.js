@@ -23,7 +23,7 @@ __decorate([
 ], CreateEmpresaDto.prototype, "nombre_empresa", void 0);
 __decorate([
     (0, class_validator_1.IsString)(),
-    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNotEmpty)(),
     __metadata("design:type", String)
 ], CreateEmpresaDto.prototype, "plan_suscripcion", void 0);
 //# sourceMappingURL=create-empresa.dto.js.map

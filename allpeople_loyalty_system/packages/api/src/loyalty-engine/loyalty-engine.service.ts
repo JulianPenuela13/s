@@ -11,31 +11,32 @@ import { CashbackLedger } from './cashback-ledger.entity';
 import { ClientProgress } from './client-progress.entity';
 import { UnlockedReward } from '../rewards/unlocked-reward.entity';
 import { Client } from '../clients/client.entity';
-import { Reward } from '../rewards/reward.entity'; // <-- LA IMPORTACIÓN QUE FALTABA
+import { Reward } from '../rewards/reward.entity';
+import { Actor } from '../audit/actor.interface';
 
 @Injectable()
 export class LoyaltyEngineService {
   private readonly logger = new Logger(LoyaltyEngineService.name);
 
   constructor(
-    @InjectRepository(PointsTransaction)
-    private pointsRepository: Repository<PointsTransaction>,
-    @InjectRepository(LoyaltyStrategy)
-    private strategyRepository: Repository<LoyaltyStrategy>,
-    @InjectRepository(CashbackLedger)
-    private cashbackRepository: Repository<CashbackLedger>,
-    @InjectRepository(ClientProgress)
-    private progressRepository: Repository<ClientProgress>,
-    @InjectRepository(UnlockedReward)
-    private unlockedRewardRepository: Repository<UnlockedReward>,
-    @InjectRepository(Reward) // Inyectamos el repo de Reward
-    private rewardsRepository: Repository<Reward>,
+    @InjectRepository(PointsTransaction) private pointsRepository: Repository<PointsTransaction>,
+    @InjectRepository(LoyaltyStrategy) private strategyRepository: Repository<LoyaltyStrategy>,
+    @InjectRepository(CashbackLedger) private cashbackRepository: Repository<CashbackLedger>,
+    @InjectRepository(ClientProgress) private progressRepository: Repository<ClientProgress>,
+    @InjectRepository(UnlockedReward) private unlockedRewardRepository: Repository<UnlockedReward>,
+    @InjectRepository(Reward) private rewardsRepository: Repository<Reward>,
     private eventEmitter: EventEmitter2,
   ) {}
 
-  async processPurchase(purchase: Purchase): Promise<any> {
-    const currentPoints = await this.getClientTotalPoints(purchase.client.id);
-    const activeStrategies = await this.strategyRepository.findBy({ is_active: true });
+  // 1. El método ahora recibe el 'actor' y sabe para qué empresa trabajar
+  async processPurchase(purchase: Purchase, actor: Actor): Promise<any> {
+    const empresaId = actor.empresaId;
+    const client = purchase.client;
+
+    const currentPoints = await this.getClientTotalPoints(client.id, empresaId);
+    
+    // 2. Buscamos solo las estrategias de la empresa correcta
+    const activeStrategies = await this.strategyRepository.findBy({ is_active: true, empresa_id: empresaId });
     
     const benefitsAwarded = {
       points_earned: 0,
@@ -47,9 +48,9 @@ export class LoyaltyEngineService {
     let pointsMultiplier = 1;
     let potentialPoints = 0;
     
-    const pointsStrategyConfig = await this.strategyRepository.findOneBy({ key: 'points' });
+    const pointsStrategyConfig = activeStrategies.find(s => s.key === 'points');
     if (pointsStrategyConfig && pointsStrategyConfig.settings && pointsStrategyConfig.settings.points_per_cop > 0) {
-        potentialPoints = Math.floor(purchase.amount / pointsStrategyConfig.settings.points_per_cop);
+      potentialPoints = Math.floor(purchase.amount / pointsStrategyConfig.settings.points_per_cop);
     }
 
     const campaignStrategy = activeStrategies.find(s => s.key === 'campaigns');
@@ -60,7 +61,6 @@ export class LoyaltyEngineService {
       endDate.setHours(23, 59, 59, 999);
       if (now >= startDate && now <= endDate) {
         pointsMultiplier = campaignStrategy.settings.multiplier || 1;
-        if(pointsMultiplier > 1) this.logger.log(`Active campaign found! Applying x${pointsMultiplier} points multiplier.`);
       }
     }
     
@@ -89,7 +89,7 @@ export class LoyaltyEngineService {
           const pointsThreshold = strategy.settings?.points_threshold;
           if (pointsThreshold > 0 && strategy.settings?.reward_to_unlock_id) {
             if (newTotalPointsAfterPurchase >= pointsThreshold && currentPoints < pointsThreshold) {
-              await this.unlockRewardForClient(purchase.client, strategy.settings.reward_to_unlock_id, strategy);
+              await this.unlockRewardForClient(client, strategy.settings.reward_to_unlock_id, strategy);
               benefitsAwarded.reward_unlocked = true;
             }
           }
@@ -100,21 +100,19 @@ export class LoyaltyEngineService {
     await this.saveBenefits(purchase, benefitsAwarded, potentialPoints);
     const finalTotalPoints = currentPoints + benefitsAwarded.points_earned;
     this.eventEmitter.emit('purchase.processed', { client: purchase.client, benefits: benefitsAwarded, newTotalPoints: finalTotalPoints });
-    this.logger.log('Dispatched purchase.processed event.');
     return benefitsAwarded;
   }
 
   private async handleProgressBasedStrategies(purchase: Purchase, strategy: LoyaltyStrategy, target_step: number, benefits: any) {
-    let progress = await this.progressRepository.findOne({ where: { client: { id: purchase.client.id }, strategy: { id: strategy.id } } });
+    const empresaId = purchase.empresa_id;
+    let progress = await this.progressRepository.findOne({ where: { client: { id: purchase.client.id }, strategy: { id: strategy.id }, empresa_id: empresaId } });
     if (!progress) {
-      progress = this.progressRepository.create({ client: { id: purchase.client.id }, strategy: { id: strategy.id }, progress_value: 0 });
+      progress = this.progressRepository.create({ client: purchase.client, strategy: strategy, progress_value: 0, empresa_id: empresaId });
     }
     progress.progress_value++;
-    const progress_text = `${progress.progress_value} de ${target_step}`;
-    benefits.progress_updates.push({ strategy_name: strategy.name, progress_text });
-    this.logger.log(`Client progress for '${strategy.name}' is now ${progress_text}`);
+    benefits.progress_updates.push({ strategy_name: strategy.name, progress_text: `${progress.progress_value} de ${target_step}` });
+
     if (progress.progress_value >= target_step) {
-      this.logger.log(`Client has met the target for ${strategy.name}!`);
       benefits.reward_unlocked = true;
       if (strategy.key === 'random_prizes' && strategy.settings?.reward_pool_ids?.length > 0) {
         await this.unlockRandomReward(purchase.client, strategy.settings.reward_pool_ids, strategy);
@@ -122,31 +120,26 @@ export class LoyaltyEngineService {
       if (strategy.key === 'frequency' && strategy.settings?.reward_to_unlock_id) {
         await this.unlockRewardForClient(purchase.client, strategy.settings.reward_to_unlock_id, strategy);
       }
-      progress.progress_value = 0;
+      progress.progress_value = 0; // Reiniciamos el progreso
     }
     await this.progressRepository.save(progress);
-    this.logger.log(`Progress saved for strategy '${strategy.name}'.`);
   }
 
   private async unlockRewardForClient(client: Client, rewardId: string, strategy: LoyaltyStrategy) {
-    const existingUnlock = await this.unlockedRewardRepository.findOneBy({ client: { id: client.id }, reward: { id: rewardId } });
-    if (existingUnlock) {
-      this.logger.log(`Client ${client.id} already has reward ${rewardId} unlocked. Skipping.`);
-      return;
-    }
-    this.logger.log(`Unlocking reward ${rewardId} for client ${client.id} via strategy ${strategy.name}`);
-    const unlockedReward = this.unlockedRewardRepository.create({ client: { id: client.id }, reward: { id: rewardId }, strategy: { id: strategy.id } });
+    const empresaId = client.empresa_id;
+    const existingUnlock = await this.unlockedRewardRepository.findOneBy({ client: { id: client.id }, reward: { id: rewardId }, empresa_id: empresaId });
+    if (existingUnlock) return;
+
+    const unlockedReward = this.unlockedRewardRepository.create({ client, reward: { id: rewardId }, strategy, empresa_id: empresaId });
     await this.unlockedRewardRepository.save(unlockedReward);
   }
 
   private async unlockRandomReward(client: Client, rewardPoolIds: string[], strategy: LoyaltyStrategy) {
     const activeRewardsInPool = await this.rewardsRepository.find({
-      where: { id: In(rewardPoolIds), is_active: true },
+      where: { id: In(rewardPoolIds), is_active: true, empresa_id: client.empresa_id },
     });
-    if (activeRewardsInPool.length === 0) {
-      this.logger.warn(`Random prize trigger met, but no active rewards found in the pool for strategy ${strategy.name}.`);
-      return;
-    }
+    if (activeRewardsInPool.length === 0) return;
+    
     const randomReward = activeRewardsInPool[Math.floor(Math.random() * activeRewardsInPool.length)];
     await this.unlockRewardForClient(client, randomReward.id, strategy);
   }
@@ -162,45 +155,46 @@ export class LoyaltyEngineService {
     }
   }
 
-  private async getClientTotalPoints(clientId: string): Promise<number> {
-    const result = await this.pointsRepository.createQueryBuilder('tx').select('SUM(tx.points_change)', 'total').where('"clientId" = :clientId', { clientId }).getRawOne();
+  private async getClientTotalPoints(clientId: string, empresaId: number): Promise<number> {
+    const result = await this.pointsRepository.createQueryBuilder('tx')
+        .select('SUM(tx.points_change)', 'total')
+        .where('"clientId" = :clientId', { clientId })
+        .andWhere('tx.empresa_id = :empresaId', { empresaId })
+        .getRawOne();
     return parseInt(result?.total, 10) || 0;
   }
 
   private async savePointsTransaction(purchase: Purchase, totalPoints: number, basePoints: number, bonusPoints: number) {
-    // Buscamos la configuración de la estrategia de puntos
-    const pointsStrategy = await this.strategyRepository.findOneBy({ key: 'points' });
+    const empresaId = purchase.empresa_id;
+    const pointsStrategy = await this.strategyRepository.findOneBy({ key: 'points', empresa_id: empresaId });
     let expirationDate: Date | null = null;
 
-    // Si la estrategia tiene la expiración activada y un número de días válido...
     if (pointsStrategy?.settings?.expiration_enabled && pointsStrategy.settings.expiration_days > 0) {
       expirationDate = new Date();
       expirationDate.setDate(expirationDate.getDate() + pointsStrategy.settings.expiration_days);
-      this.logger.log(`Points will expire on: ${expirationDate.toISOString()}`);
     }
 
     const transaction = this.pointsRepository.create({
-      client: { id: purchase.client.id },
-      purchase: { id: purchase.id },
+      client: purchase.client,
+      purchase: purchase,
       points_change: totalPoints,
       base_points: basePoints,
       bonus_points: bonusPoints,
       reason: 'Puntos por compra',
-      expires_at: expirationDate, // Guardamos la fecha de vencimiento
+      expires_at: expirationDate,
+      empresa_id: empresaId,
     });
-
     await this.pointsRepository.save(transaction);
-    this.logger.log(`Awarded ${totalPoints} points (${basePoints} base + ${bonusPoints} bonus).`);
-}
+  }
 
   private async saveCashbackTransaction(purchase: Purchase, amount: number) {
     const transaction = this.cashbackRepository.create({
-      client: { id: purchase.client.id },
-      purchase: { id: purchase.id },
+      client: purchase.client,
+      purchase: purchase,
       amount_change: amount,
       reason: 'Cashback por compra',
+      empresa_id: purchase.empresa_id,
     });
     await this.cashbackRepository.save(transaction);
-    this.logger.log(`Awarded $${amount.toFixed(2)} cashback.`);
   }
 }

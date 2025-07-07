@@ -17,45 +17,49 @@ const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const purchase_entity_1 = require("./purchase.entity");
+const loyalty_engine_service_1 = require("../loyalty-engine/loyalty-engine.service");
+const client_entity_1 = require("../clients/client.entity");
 let PurchasesService = class PurchasesService {
     purchasesRepository;
-    constructor(purchasesRepository) {
+    clientsRepository;
+    loyaltyEngineService;
+    constructor(purchasesRepository, clientsRepository, loyaltyEngineService) {
         this.purchasesRepository = purchasesRepository;
+        this.clientsRepository = clientsRepository;
+        this.loyaltyEngineService = loyaltyEngineService;
     }
-    async create(createPurchaseDto, empresaId) {
-        const newPurchase = this.purchasesRepository.create({
-            ...createPurchaseDto,
+    async createPurchase(dto, actor) {
+        const empresaId = actor.empresaId;
+        const client = await this.clientsRepository.findOneBy({
+            document_id: dto.client_document_id,
             empresa_id: empresaId,
         });
-        return this.purchasesRepository.save(newPurchase);
-    }
-    async findAll(empresaId) {
-        return this.purchasesRepository.find({
-            where: { empresa_id: empresaId },
-            relations: ['client'],
-        });
-    }
-    async findOne(id, empresaId) {
-        const purchase = await this.purchasesRepository.findOne({
-            where: { id, empresa_id: empresaId },
-            relations: ['client'],
-        });
-        if (!purchase) {
-            throw new common_1.NotFoundException(`Compra con ID "${id}" no encontrada.`);
+        if (!client) {
+            throw new common_1.NotFoundException(`No se puede registrar la compra porque el cliente con cédula ${dto.client_document_id} no existe en su empresa.`);
         }
-        return purchase;
-    }
-    async remove(id, empresaId) {
-        const result = await this.purchasesRepository.delete({ id, empresa_id: empresaId });
-        if (result.affected === 0) {
-            throw new common_1.NotFoundException(`Compra con ID "${id}" no encontrada.`);
-        }
+        const purchase = this.purchasesRepository.create({
+            client: client,
+            amount: dto.amount,
+            empresa_id: empresaId,
+        });
+        const savedPurchase = await this.purchasesRepository.save(purchase);
+        const benefits = await this.loyaltyEngineService.processPurchase(savedPurchase, actor);
+        return {
+            message: 'Compra registrada y procesada exitosamente.',
+            purchaseId: savedPurchase.id,
+            clientId: client.id,
+            clientName: client.full_name,
+            benefitsAwarded: benefits,
+        };
     }
 };
 exports.PurchasesService = PurchasesService;
 exports.PurchasesService = PurchasesService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(purchase_entity_1.Purchase)),
-    __metadata("design:paramtypes", [typeorm_2.Repository])
+    __param(1, (0, typeorm_1.InjectRepository)(client_entity_1.Client)),
+    __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository,
+        loyalty_engine_service_1.LoyaltyEngineService])
 ], PurchasesService);
 //# sourceMappingURL=purchases.service.js.map

@@ -13,8 +13,9 @@ exports.PointsTransaction = void 0;
 const typeorm_1 = require("typeorm");
 const client_entity_1 = require("../clients/client.entity");
 const purchase_entity_1 = require("../purchases/purchase.entity");
-const redemption_entity_1 = require("../redemptions/redemption.entity");
-const empresa_entity_1 = require("../empresas/empresa.entity");
+const redemption_entity_1 = require("../rewards/redemption.entity");
+const empresa_entity_1 = require("../empresas/entities/empresa.entity");
+const typeorm_2 = require("typeorm");
 let PointsTransaction = class PointsTransaction {
     id;
     client;
@@ -24,8 +25,8 @@ let PointsTransaction = class PointsTransaction {
     base_points;
     bonus_points;
     reason;
-    empresa_id;
     empresa;
+    empresa_id;
     created_at;
     expires_at;
 };
@@ -63,14 +64,14 @@ __decorate([
     __metadata("design:type", String)
 ], PointsTransaction.prototype, "reason", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'int' }),
-    __metadata("design:type", Number)
-], PointsTransaction.prototype, "empresa_id", void 0);
-__decorate([
-    (0, typeorm_1.ManyToOne)(() => empresa_entity_1.Empresa),
-    (0, typeorm_1.JoinColumn)({ name: 'empresa_id' }),
+    (0, typeorm_1.ManyToOne)(() => empresa_entity_1.Empresa, { nullable: false, onDelete: 'CASCADE' }),
+    (0, typeorm_2.JoinColumn)({ name: 'empresa_id' }),
     __metadata("design:type", empresa_entity_1.Empresa)
 ], PointsTransaction.prototype, "empresa", void 0);
+__decorate([
+    (0, typeorm_1.Column)(),
+    __metadata("design:type", Number)
+], PointsTransaction.prototype, "empresa_id", void 0);
 __decorate([
     (0, typeorm_1.CreateDateColumn)({ type: 'timestamptz' }),
     __metadata("design:type", Date)

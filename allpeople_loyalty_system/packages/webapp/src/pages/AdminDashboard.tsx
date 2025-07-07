@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api/axiosConfig';
 
 // --- Definimos los tipos que usaremos en esta página ---
 type RewardType = 'standard' | 'secret';
@@ -19,14 +19,6 @@ interface Strategy {
   is_active: boolean;
   settings: any;
 }
-
-// --- Instancia de API ---
-const token = localStorage.getItem('authToken');
-const api = axios.create({
-  baseURL: 'http://localhost:3000',
-  headers: { Authorization: `Bearer ${token}` },
-});
-
 
 // --- Componente para el Formulario de Configuración (conoce todas las estrategias) ---
 const StrategySettingsForm = ({ strategy, rewards, onSave, onCancel }: { strategy: Strategy, rewards: Reward[], onSave: (settings: any) => void, onCancel: () => void }) => {

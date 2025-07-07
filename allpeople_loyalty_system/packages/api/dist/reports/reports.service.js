@@ -17,7 +17,7 @@ const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const client_entity_1 = require("../clients/client.entity");
-const redemption_entity_1 = require("../redemptions/redemption.entity");
+const redemption_entity_1 = require("../rewards/redemption.entity");
 const points_transaction_entity_1 = require("../loyalty-engine/points-transaction.entity");
 const purchase_entity_1 = require("../purchases/purchase.entity");
 const cashback_ledger_entity_1 = require("../loyalty-engine/cashback-ledger.entity");
@@ -40,14 +40,16 @@ let ReportsService = class ReportsService {
         this.unlockedRewardRepo = unlockedRewardRepo;
         this.strategyRepo = strategyRepo;
     }
-    async getDashboardStats() {
-        const activeStrategies = await this.strategyRepo.findBy({ is_active: true });
+    async getDashboardStats(actor) {
+        const empresaId = actor.empresaId;
+        const whereClause = { where: { empresa_id: empresaId } };
+        const activeStrategies = await this.strategyRepo.findBy({ is_active: true, empresa_id: empresaId });
         const activeKeys = activeStrategies.map(s => s.key);
         const stats = {};
         const [totalClients, totalPurchases, totalRedemptions] = await Promise.all([
-            this.clientsRepo.count(),
-            this.purchaseRepository.count(),
-            this.redemptionsRepo.count(),
+            this.clientsRepo.count(whereClause),
+            this.purchaseRepository.count(whereClause),
+            this.redemptionsRepo.count(whereClause),
         ]);
         stats.totalClients = totalClients;
         stats.totalPurchases = totalPurchases;
@@ -58,6 +60,7 @@ let ReportsService = class ReportsService {
                 .addSelect('SUM(CASE WHEN tx.points_change < 0 AND tx.reason NOT LIKE :expiredReason THEN tx.points_change ELSE 0 END)', 'redeemed')
                 .addSelect('SUM(CASE WHEN tx.reason LIKE :expiredReason THEN tx.points_change ELSE 0 END)', 'expired')
                 .addSelect('SUM(tx.bonus_points)', 'bonus')
+                .where('tx.empresa_id = :empresaId', { empresaId })
                 .setParameter('expiredReason', 'Vencimiento de puntos%')
                 .getRawOne();
             stats.totalPointsEarned = parseInt(pointsResult?.earned, 10) || 0;
@@ -66,14 +69,18 @@ let ReportsService = class ReportsService {
             stats.totalPointsExpired = Math.abs(parseInt(pointsResult?.expired, 10)) || 0;
         }
         if (activeKeys.includes('cashback')) {
-            const cashbackResult = await this.cashbackRepo.createQueryBuilder("cb").select("SUM(cb.amount_change)", "total").where("cb.amount_change > 0").getRawOne();
+            const cashbackResult = await this.cashbackRepo.createQueryBuilder("cb")
+                .select("SUM(cb.amount_change)", "total")
+                .where("cb.amount_change > 0")
+                .andWhere("cb.empresa_id = :empresaId", { empresaId })
+                .getRawOne();
             stats.totalCashbackEarned = parseFloat(cashbackResult?.total) || 0;
         }
         const getCountForStrategy = async (strategyKey) => {
             const strategy = activeStrategies.find(s => s.key === strategyKey);
             if (!strategy)
                 return 0;
-            return this.redemptionsRepo.count({ where: { strategy: { id: strategy.id } } });
+            return this.redemptionsRepo.count({ where: { strategy: { id: strategy.id }, empresa_id: empresaId } });
         };
         const [freq, random, secret] = await Promise.all([
             getCountForStrategy('frequency'),
@@ -88,14 +95,17 @@ let ReportsService = class ReportsService {
             stats.rewardsFromSecret = secret;
         return stats;
     }
-    async getDynamicReportTables() {
-        const activeStrategies = await this.strategyRepo.findBy({ is_active: true });
+    async getDynamicReportTables(actor) {
+        const empresaId = actor.empresaId;
+        const activeStrategies = await this.strategyRepo.findBy({ is_active: true, empresa_id: empresaId });
         const tables = [];
         if (activeStrategies.some(s => s.key === 'points')) {
             const data = await this.pointsRepo.createQueryBuilder("tx")
                 .select("client.full_name", "Cliente")
                 .addSelect("SUM(tx.points_change)::int", "Puntos Totales")
-                .innerJoin("tx.client", "client").where("tx.points_change > 0")
+                .innerJoin("tx.client", "client")
+                .where("tx.points_change > 0")
+                .andWhere("tx.empresa_id = :empresaId", { empresaId })
                 .groupBy("client.id").orderBy("\"Puntos Totales\"", "DESC").limit(5).getRawMany();
             if (data.length > 0)
                 tables.push({ title: 'Top Clientes (por Puntos)', data });
@@ -105,50 +115,10 @@ let ReportsService = class ReportsService {
                 .select("client.full_name", "Cliente")
                 .addSelect("COUNT(purchase.id)", "Total Compras")
                 .innerJoin("purchase.client", "client")
+                .where("purchase.empresa_id = :empresaId", { empresaId })
                 .groupBy("client.id").orderBy("\"Total Compras\"", "DESC").limit(5).getRawMany();
             if (data.length > 0)
                 tables.push({ title: 'Top Clientes (por Frecuencia)', data });
-        }
-        if (activeStrategies.some(s => s.key === 'cashback')) {
-            const data = await this.cashbackRepo.createQueryBuilder("ledger")
-                .select("client.full_name", "Cliente")
-                .addSelect("SUM(ledger.amount_change)", "Cashback Ganado")
-                .innerJoin("ledger.client", "client")
-                .where("ledger.amount_change > 0")
-                .groupBy("client.id").orderBy("\"Cashback Ganado\"", "DESC").limit(5).getRawMany();
-            if (data.length > 0) {
-                data.forEach(row => row['Cashback Ganado'] = parseFloat(row['Cashback Ganado']).toLocaleString('es-CO', { style: 'currency', currency: 'COP' }));
-                tables.push({ title: 'Top Clientes (por Cashback)', data });
-            }
-        }
-        if (activeStrategies.some(s => s.key === 'secret_rewards')) {
-            const data = await this.unlockedRewardRepo.createQueryBuilder("unlocked")
-                .select("client.full_name", "Cliente")
-                .addSelect("COUNT(unlocked.id)", "Premios Secretos Obtenidos")
-                .innerJoin("unlocked.client", "client")
-                .innerJoin("unlocked.strategy", "strategy", "strategy.key = :key", { key: 'secret_rewards' })
-                .groupBy("client.id").orderBy("\"Premios Secretos Obtenidos\"", "DESC").limit(5).getRawMany();
-            if (data.length > 0)
-                tables.push({ title: 'Top Clientes (Recompensas Secretas)', data });
-        }
-        if (activeStrategies.some(s => s.key === 'random_prizes')) {
-            const data = await this.unlockedRewardRepo.createQueryBuilder("unlocked")
-                .select("client.full_name", "Cliente")
-                .addSelect("COUNT(unlocked.id)", "Premios Aleatorios Obtenidos")
-                .innerJoin("unlocked.client", "client")
-                .innerJoin("unlocked.strategy", "strategy", "strategy.key = :key", { key: 'random_prizes' })
-                .groupBy("client.id").orderBy("\"Premios Aleatorios Obtenidos\"", "DESC").limit(5).getRawMany();
-            if (data.length > 0)
-                tables.push({ title: 'Top Clientes (Premios Aleatorios)', data });
-        }
-        const redemptionPossible = activeStrategies.some(s => ['points', 'frequency', 'random_prizes', 'secret_rewards'].includes(s.key));
-        if (redemptionPossible) {
-            const data = await this.redemptionsRepo.createQueryBuilder("redemption")
-                .select("reward.name", "Recompensa").addSelect("COUNT(redemption.id)", "Total Canjes")
-                .innerJoin("redemption.reward", "reward")
-                .groupBy("reward.id").orderBy("\"Total Canjes\"", "DESC").limit(5).getRawMany();
-            if (data.length > 0)
-                tables.push({ title: 'Top Recompensas (por Canjes)', data });
         }
         return tables;
     }

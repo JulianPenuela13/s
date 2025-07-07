@@ -1,16 +1,17 @@
 // packages/api/src/loyalty-engine/loyalty-strategy.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column, Index } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, Index, ManyToOne, JoinColumn } from 'typeorm';
 import { Empresa } from '../empresas/entities/empresa.entity';
-import { ManyToOne, JoinColumn } from 'typeorm';
-
 
 @Entity('loyalty_strategies')
+// 1. Creamos un índice único compuesto. Una misma 'key' (ej: 'points') puede existir,
+//    pero solo una vez por cada 'empresa_id'.
+@Index(['key', 'empresa_id'], { unique: true })
 export class LoyaltyStrategy {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Index({ unique: true })
-  @Column({ unique: true })
+  // 2. Quitamos la restricción 'unique: true' de aquí porque ya la maneja el @Index de arriba.
+  @Column()
   key: string;
 
   @Column()
@@ -24,8 +25,8 @@ export class LoyaltyStrategy {
   empresa: Empresa;
 
   @Column()
-  empresa_id: number;  
+  empresa_id: number;
 
   @Column({ type: 'jsonb', nullable: true })
-  settings: any; // Aquí guardaremos las reglas específicas de cada estrategia
+  settings: any;
 }

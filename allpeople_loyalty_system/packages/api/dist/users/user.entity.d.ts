@@ -1,8 +1,9 @@
-import { Empresa } from '../empresas/empresa.entity';
+import { Empresa } from '../empresas/entities/empresa.entity';
 export declare enum UserRole {
     ADMIN = "admin",
     SUPERVISOR = "supervisor",
-    CASHIER = "cashier"
+    CASHIER = "cashier",
+    SUPER_ADMIN = "super_admin"
 }
 export declare class User {
     id: string;
@@ -10,8 +11,8 @@ export declare class User {
     password_hash: string;
     role: UserRole;
     full_name: string;
-    empresa_id: number;
     empresa: Empresa;
+    empresa_id: number;
     created_at: Date;
     hashPassword(): Promise<void>;
 }

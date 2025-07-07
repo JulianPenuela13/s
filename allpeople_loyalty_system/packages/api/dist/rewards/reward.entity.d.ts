@@ -1,10 +1,16 @@
-import { Empresa } from '../empresas/empresa.entity';
+import { Empresa } from '../empresas/entities/empresa.entity';
+export declare enum RewardType {
+    STANDARD = "standard",
+    SECRET = "secret"
+}
 export declare class Reward {
     id: string;
     name: string;
     description: string;
-    points_cost: number;
-    empresa_id: number;
+    type: RewardType;
+    cost_in_points: number;
+    stock: number;
+    is_active: boolean;
     empresa: Empresa;
-    created_at: Date;
+    empresa_id: number;
 }

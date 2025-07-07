@@ -1,6 +1,6 @@
 export declare class CreateClientDto {
+    document_id: string;
     full_name: string;
     phone_number: string;
-    document_id?: string;
-    points_balance?: number;
+    birth_date?: string;
 }

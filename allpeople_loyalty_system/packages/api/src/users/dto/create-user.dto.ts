@@ -18,5 +18,5 @@ export class CreateUserDto {
   @IsString()
   @IsNotEmpty()
   @MinLength(8)
-  password: string; // Recibiremos la contraseña en texto plano y el servicio se encargará de encriptarla
+  password: string; 
 }

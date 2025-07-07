@@ -1,29 +1,34 @@
 // packages/api/src/auth/auth.service.ts
+
 import { Injectable } from '@nestjs/common';
-import { UsersService } from '../users/users.service';
-import { JwtService } from '@nestjs/jwt';
-import * as bcrypt from 'bcrypt';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { AuditLog } from './audit-log.entity';
+import { User } from '../users/user.entity';
+
+// Interfaz para el Actor (usuario) que realiza la acción
+export interface Actor {
+  userId: number;
+  rol: string;
+  empresaId: number;
+}
 
 @Injectable()
-export class AuthService {
+export class AuditService {
   constructor(
-    private usersService: UsersService,
-    private jwtService: JwtService,
+    @InjectRepository(AuditLog)
+    private auditRepository: Repository<AuditLog>,
   ) {}
 
-  async validateUser(email: string, pass: string): Promise<any> {
-    const user = await this.usersService.findOneByEmail(email);
-    if (user && (await bcrypt.compare(pass, user.password_hash))) {
-      const { password_hash, ...result } = user;
-      return result;
-    }
-    return null;
-  }
-
-  async login(user: any) {
-    const payload = { email: user.email, sub: user.id, role: user.role, empresaId: user.empresa_id };
-    return {
-      access_token: this.jwtService.sign(payload),
-    };
+  async logAction(actor: Actor, action: string, details?: any): Promise<void> {
+    
+    const logEntry = this.auditRepository.create({
+      user: { id: actor.userId } as unknown as User,
+      action,
+      details,
+      empresa_id: actor.empresaId,
+    });
+    
+    await this.auditRepository.save(logEntry);
   }
 }

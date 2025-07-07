@@ -18,9 +18,9 @@ import { LoyaltyStrategy } from '../loyalty-engine/loyalty-strategy.entity';
       PointsTransaction,
       Redemption,
       Client,
-      Purchase, // Añadido
-      CashbackLedger, // Añadido
-      UnlockedReward, // Añadido
+      Purchase, 
+      CashbackLedger, 
+      UnlockedReward, 
       LoyaltyStrategy,
     ]),
   ],

@@ -18,40 +18,39 @@ const rewards_service_1 = require("./rewards.service");
 const create_reward_dto_1 = require("./dto/create-reward.dto");
 const update_reward_dto_1 = require("./dto/update-reward.dto");
 const jwt_auth_guard_1 = require("../auth/guards/jwt-auth.guard");
+const roles_guard_1 = require("../auth/guards/roles.guard");
 const roles_decorator_1 = require("../auth/decorators/roles.decorator");
 const user_entity_1 = require("../users/user.entity");
-const roles_guard_1 = require("../auth/guards/roles.guard");
 let RewardsController = class RewardsController {
     rewardsService;
     constructor(rewardsService) {
         this.rewardsService = rewardsService;
     }
     create(createRewardDto, req) {
-        const { empresaId } = req.user;
-        return this.rewardsService.create(createRewardDto, empresaId);
+        const actor = req.user;
+        return this.rewardsService.create(createRewardDto, actor);
     }
-    findAll(req) {
-        const { empresaId } = req.user;
-        return this.rewardsService.findAll(empresaId);
+    findAll(context, req) {
+        return this.rewardsService.findAll(req.user, context);
     }
     findOne(id, req) {
-        const { empresaId } = req.user;
-        return this.rewardsService.findOne(id, empresaId);
+        return this.rewardsService.findOne(id, req.user);
     }
     update(id, updateRewardDto, req) {
-        const { empresaId } = req.user;
-        return this.rewardsService.update(id, updateRewardDto, empresaId);
+        const actor = req.user;
+        return this.rewardsService.update(id, updateRewardDto, actor);
     }
     remove(id, req) {
-        const { empresaId } = req.user;
-        return this.rewardsService.remove(id, empresaId);
+        const actor = req.user;
+        return this.rewardsService.remove(id, actor);
     }
 };
 exports.RewardsController = RewardsController;
 __decorate([
     (0, common_1.Post)(),
     (0, roles_decorator_1.Roles)(user_entity_1.UserRole.ADMIN),
-    __param(0, (0, common_1.Body)()),
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    __param(0, (0, common_1.Body)(new common_1.ValidationPipe())),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [create_reward_dto_1.CreateRewardDto, Object]),
@@ -59,9 +58,10 @@ __decorate([
 ], RewardsController.prototype, "create", null);
 __decorate([
     (0, common_1.Get)(),
-    __param(0, (0, common_1.Req)()),
+    __param(0, (0, common_1.Query)('context')),
+    __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], RewardsController.prototype, "findAll", null);
 __decorate([
@@ -75,8 +75,9 @@ __decorate([
 __decorate([
     (0, common_1.Patch)(':id'),
     (0, roles_decorator_1.Roles)(user_entity_1.UserRole.ADMIN),
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
     __param(0, (0, common_1.Param)('id', common_1.ParseUUIDPipe)),
-    __param(1, (0, common_1.Body)()),
+    __param(1, (0, common_1.Body)(new common_1.ValidationPipe())),
     __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, update_reward_dto_1.UpdateRewardDto, Object]),
@@ -85,6 +86,8 @@ __decorate([
 __decorate([
     (0, common_1.Delete)(':id'),
     (0, roles_decorator_1.Roles)(user_entity_1.UserRole.ADMIN),
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    (0, common_1.HttpCode)(common_1.HttpStatus.NO_CONTENT),
     __param(0, (0, common_1.Param)('id', common_1.ParseUUIDPipe)),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
@@ -93,7 +96,7 @@ __decorate([
 ], RewardsController.prototype, "remove", null);
 exports.RewardsController = RewardsController = __decorate([
     (0, common_1.Controller)('rewards'),
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     __metadata("design:paramtypes", [rewards_service_1.RewardsService])
 ], RewardsController);
 //# sourceMappingURL=rewards.controller.js.map

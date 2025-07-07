@@ -1,5 +1,6 @@
+// packages/webapp/src/components/CashierForm.tsx
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api/axiosConfig'; // <-- 1. IMPORTAMOS NUESTRA CONFIGURACIÓN
 
 interface ClientSummary {
   id: string;
@@ -14,11 +15,7 @@ interface Reward {
   cost_in_points: number;
 }
 
-const token = localStorage.getItem('authToken');
-const api = axios.create({
-  baseURL: 'http://localhost:3000',
-  headers: { Authorization: `Bearer ${token}` },
-});
+// 2. HEMOS ELIMINADO LA CREACIÓN DE AXIOS DE AQUÍ
 
 const CashierForm: React.FC = () => {
   const [viewMode, setViewMode] = useState<'search' | 'create'>('search');
@@ -166,7 +163,7 @@ const CashierForm: React.FC = () => {
         }
       };
       fetchRewards();
-    }, [client.id]);
+    }, [client.id, client.total_points]); // <-- Añadimos client.total_points como dependencia
 
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
@@ -177,7 +174,7 @@ const CashierForm: React.FC = () => {
           <ul className="space-y-2">
             {rewards.map((r) => (
               <li key={r.id} className="flex justify-between items-center border-b pb-2">
-                <span>{r.name} ({r.cost_in_points} pts)</span>
+                <span>{r.name} ({r.cost_in_points > 0 ? `${r.cost_in_points} pts` : 'GRATIS'})</span>
                 <button onClick={() => onRedeem(r)} className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700">Canjear</button>
               </li>
             ))}
@@ -192,7 +189,7 @@ const CashierForm: React.FC = () => {
 
   return (
     <div className="max-w-xl mx-auto mt-10 px-4 font-sans">
-      <h1 className="text-2xl font-bold mb-6 text-center">Estación del Cajero - All People</h1>
+      <h1 className="text-2xl font-bold mb-6 text-center">Estación del Cajero</h1>
 
       {!clientSummary && (
         <div className="flex justify-center gap-4 mb-6">
@@ -233,7 +230,7 @@ const CashierForm: React.FC = () => {
       )}
 
       {message && (
-        <p className={`mt-4 font-medium ${isError ? 'text-red-600' : 'text-green-600'}`}>{message}</p>
+        <p className={`mt-4 text-center font-medium ${isError ? 'text-red-600' : 'text-green-600'}`}>{message}</p>
       )}
 
       {isRedeemModalOpen && clientSummary && (

@@ -11,17 +11,17 @@ const common_1 = require("@nestjs/common");
 const admin_controller_1 = require("./admin.controller");
 const admin_service_1 = require("./admin.service");
 const typeorm_1 = require("@nestjs/typeorm");
+const empresa_entity_1 = require("../empresas/entities/empresa.entity");
+const users_module_1 = require("../users/users.module");
 const loyalty_strategy_entity_1 = require("../loyalty-engine/loyalty-strategy.entity");
-const audit_log_entity_1 = require("../audit/audit-log.entity");
-const audit_module_1 = require("../audit/audit.module");
 let AdminModule = class AdminModule {
 };
 exports.AdminModule = AdminModule;
 exports.AdminModule = AdminModule = __decorate([
     (0, common_1.Module)({
         imports: [
-            typeorm_1.TypeOrmModule.forFeature([loyalty_strategy_entity_1.LoyaltyStrategy, audit_log_entity_1.AuditLog]),
-            audit_module_1.AuditModule,
+            typeorm_1.TypeOrmModule.forFeature([empresa_entity_1.Empresa, loyalty_strategy_entity_1.LoyaltyStrategy]),
+            users_module_1.UsersModule,
         ],
         controllers: [admin_controller_1.AdminController],
         providers: [admin_service_1.AdminService],

@@ -1,6 +1,6 @@
 // packages/api/src/loyalty-engine/client-progress.entity.ts
 
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, Unique } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, Unique, Index } from 'typeorm';
 import { Client } from '../clients/client.entity';
 import { LoyaltyStrategy } from './loyalty-strategy.entity';
 import { Empresa } from '../empresas/entities/empresa.entity';
@@ -8,7 +8,9 @@ import { JoinColumn } from 'typeorm';
 
 
 @Entity('client_progress')
-@Unique(['client', 'strategy']) // Un cliente solo puede tener una línea de progreso por estrategia
+// 1. Reemplazamos @Unique por @Index para crear un índice compuesto de tres columnas.
+// Ahora, la combinación de cliente, estrategia y empresa debe ser única.
+@Index(['client', 'strategy', 'empresa_id'], { unique: true })
 export class ClientProgress {
   @PrimaryGeneratedColumn('uuid')
   id: string;

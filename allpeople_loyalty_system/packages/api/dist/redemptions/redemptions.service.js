@@ -8,65 +8,93 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
-var __param = (this && this.__param) || function (paramIndex, decorator) {
-    return function (target, key) { decorator(target, key, paramIndex); }
-};
+var RedemptionsService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.RedemptionsService = void 0;
 const common_1 = require("@nestjs/common");
-const typeorm_1 = require("@nestjs/typeorm");
-const typeorm_2 = require("typeorm");
-const redemption_entity_1 = require("./redemption.entity");
+const typeorm_1 = require("typeorm");
+const redemption_entity_1 = require("../rewards/redemption.entity");
+const client_entity_1 = require("../clients/client.entity");
+const reward_entity_1 = require("../rewards/reward.entity");
+const points_transaction_entity_1 = require("../loyalty-engine/points-transaction.entity");
+const unlocked_reward_entity_1 = require("../rewards/unlocked-reward.entity");
+const whatsapp_service_1 = require("../whatsapp/whatsapp.service");
 const clients_service_1 = require("../clients/clients.service");
 const rewards_service_1 = require("../rewards/rewards.service");
-let RedemptionsService = class RedemptionsService {
-    redemptionsRepository;
+let RedemptionsService = RedemptionsService_1 = class RedemptionsService {
+    dataSource;
     clientsService;
     rewardsService;
-    constructor(redemptionsRepository, clientsService, rewardsService) {
-        this.redemptionsRepository = redemptionsRepository;
+    whatsappService;
+    logger = new common_1.Logger(RedemptionsService_1.name);
+    constructor(dataSource, clientsService, rewardsService, whatsappService) {
+        this.dataSource = dataSource;
         this.clientsService = clientsService;
         this.rewardsService = rewardsService;
+        this.whatsappService = whatsappService;
     }
-    async create(createRedemptionDto, empresaId) {
-        const { clientId, rewardId } = createRedemptionDto;
-        const client = await this.clientsService.findOne(clientId, empresaId);
-        const reward = await this.rewardsService.findOne(rewardId, empresaId);
-        if (client.points_balance < reward.points_cost) {
-            throw new common_1.BadRequestException('El cliente no tiene puntos suficientes para canjear esta recompensa.');
-        }
-        const newBalance = client.points_balance - reward.points_cost;
-        await this.clientsService.update(clientId, { points_balance: newBalance }, empresaId);
-        const newRedemption = this.redemptionsRepository.create({
-            client: { id: clientId },
-            reward: { id: rewardId },
-            empresa: { id: empresaId },
+    async redeem(dto, actor) {
+        const empresaId = actor.empresaId;
+        const savedRedemption = await this.dataSource.transaction(async (transactionalEntityManager) => {
+            const client = await transactionalEntityManager.findOneBy(client_entity_1.Client, { id: dto.clientId, empresa_id: empresaId });
+            const reward = await transactionalEntityManager.findOneBy(reward_entity_1.Reward, { id: dto.rewardId, empresa_id: empresaId });
+            if (!client)
+                throw new common_1.NotFoundException('Cliente no encontrado en esta empresa.');
+            if (!reward)
+                throw new common_1.NotFoundException('Recompensa no encontrada en esta empresa.');
+            const unlockedReward = await transactionalEntityManager.findOne(unlocked_reward_entity_1.UnlockedReward, {
+                where: { client: { id: dto.clientId }, reward: { id: dto.rewardId }, empresa_id: empresaId },
+                relations: ['strategy'],
+            });
+            const redemptionData = { client, reward, user: { id: actor.userId }, empresa_id: empresaId };
+            if (unlockedReward) {
+                this.logger.log(`Procesando canje 'claim' para cliente ${dto.clientId} en empresa ${empresaId}`);
+                redemptionData.points_used = 0;
+                redemptionData.strategy = unlockedReward.strategy;
+                await transactionalEntityManager.remove(unlockedReward);
+            }
+            else {
+                this.logger.log(`Procesando canje 'points purchase' para cliente ${dto.clientId} en empresa ${empresaId}`);
+                const pointsResult = await transactionalEntityManager.createQueryBuilder(points_transaction_entity_1.PointsTransaction, 'tx')
+                    .select('SUM(tx.points_change)', 'total')
+                    .where('"clientId" = :clientId', { clientId: client.id })
+                    .andWhere('tx.empresa_id = :empresaId', { empresaId })
+                    .getRawOne();
+                const totalPoints = parseInt(pointsResult.total, 10) || 0;
+                if (totalPoints < reward.cost_in_points) {
+                    throw new common_1.BadRequestException('El cliente no tiene suficientes puntos.');
+                }
+                const pointsDeduction = transactionalEntityManager.create(points_transaction_entity_1.PointsTransaction, {
+                    client,
+                    points_change: -reward.cost_in_points,
+                    reason: `Canje de recompensa: ${reward.name}`,
+                    empresa_id: empresaId,
+                });
+                await transactionalEntityManager.save(pointsDeduction);
+                this.logger.log(`Puntos deducidos exitosamente.`);
+                redemptionData.points_used = reward.cost_in_points;
+            }
+            if (reward.stock !== -1) {
+                if (reward.stock < 1)
+                    throw new common_1.BadRequestException('Recompensa sin stock.');
+                await transactionalEntityManager.decrement(reward_entity_1.Reward, { id: reward.id, empresa_id: empresaId }, 'stock', 1);
+            }
+            const redemption = transactionalEntityManager.create(redemption_entity_1.Redemption, redemptionData);
+            return transactionalEntityManager.save(redemption);
         });
-        return this.redemptionsRepository.save(newRedemption);
-    }
-    async findAll(empresaId) {
-        return this.redemptionsRepository.find({
-            where: { empresa_id: empresaId },
-            relations: ['client', 'reward'],
-        });
-    }
-    async findOne(id, empresaId) {
-        const redemption = await this.redemptionsRepository.findOne({
-            where: { id, empresa_id: empresaId },
-            relations: ['client', 'reward'],
-        });
-        if (!redemption) {
-            throw new common_1.NotFoundException(`Canje con ID "${id}" no encontrado.`);
-        }
-        return redemption;
+        const finalClientState = await this.clientsService.findOne(dto.clientId, actor);
+        const finalRewardState = await this.rewardsService.findOne(dto.rewardId, actor);
+        const newTotalPoints = (await this.clientsService.getClientSummary(finalClientState.document_id, actor)).total_points;
+        await this.whatsappService.sendRedemptionNotification(finalClientState, finalRewardState, newTotalPoints);
+        return savedRedemption;
     }
 };
 exports.RedemptionsService = RedemptionsService;
-exports.RedemptionsService = RedemptionsService = __decorate([
+exports.RedemptionsService = RedemptionsService = RedemptionsService_1 = __decorate([
     (0, common_1.Injectable)(),
-    __param(0, (0, typeorm_1.InjectRepository)(redemption_entity_1.Redemption)),
-    __metadata("design:paramtypes", [typeorm_2.Repository,
+    __metadata("design:paramtypes", [typeorm_1.DataSource,
         clients_service_1.ClientsService,
-        rewards_service_1.RewardsService])
+        rewards_service_1.RewardsService,
+        whatsapp_service_1.WhatsappService])
 ], RedemptionsService);
 //# sourceMappingURL=redemptions.service.js.map

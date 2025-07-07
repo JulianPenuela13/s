@@ -15,13 +15,14 @@ const points_transaction_entity_1 = require("../loyalty-engine/points-transactio
 const loyalty_strategy_entity_1 = require("../loyalty-engine/loyalty-strategy.entity");
 const whatsapp_module_1 = require("../whatsapp/whatsapp.module");
 const client_entity_1 = require("../clients/client.entity");
+const empresa_entity_1 = require("../empresas/entities/empresa.entity");
 let TasksModule = class TasksModule {
 };
 exports.TasksModule = TasksModule;
 exports.TasksModule = TasksModule = __decorate([
     (0, common_1.Module)({
         imports: [
-            typeorm_1.TypeOrmModule.forFeature([points_transaction_entity_1.PointsTransaction, loyalty_strategy_entity_1.LoyaltyStrategy, client_entity_1.Client,]),
+            typeorm_1.TypeOrmModule.forFeature([points_transaction_entity_1.PointsTransaction, loyalty_strategy_entity_1.LoyaltyStrategy, client_entity_1.Client, empresa_entity_1.Empresa,]),
             whatsapp_module_1.WhatsappModule,
         ],
         controllers: [tasks_controller_1.TasksController],

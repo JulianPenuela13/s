@@ -13,15 +13,15 @@ exports.CashbackLedger = void 0;
 const typeorm_1 = require("typeorm");
 const client_entity_1 = require("../clients/client.entity");
 const purchase_entity_1 = require("../purchases/purchase.entity");
-const empresa_entity_1 = require("../empresas/empresa.entity");
+const empresa_entity_1 = require("../empresas/entities/empresa.entity");
 let CashbackLedger = class CashbackLedger {
     id;
     client;
     purchase;
     amount_change;
     reason;
-    empresa_id;
     empresa;
+    empresa_id;
     created_at;
 };
 exports.CashbackLedger = CashbackLedger;
@@ -34,7 +34,7 @@ __decorate([
     __metadata("design:type", client_entity_1.Client)
 ], CashbackLedger.prototype, "client", void 0);
 __decorate([
-    (0, typeorm_1.ManyToOne)(() => purchase_entity_1.Purchase),
+    (0, typeorm_1.ManyToOne)(() => purchase_entity_1.Purchase, { nullable: true }),
     __metadata("design:type", purchase_entity_1.Purchase)
 ], CashbackLedger.prototype, "purchase", void 0);
 __decorate([
@@ -46,14 +46,14 @@ __decorate([
     __metadata("design:type", String)
 ], CashbackLedger.prototype, "reason", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'int' }),
-    __metadata("design:type", Number)
-], CashbackLedger.prototype, "empresa_id", void 0);
-__decorate([
-    (0, typeorm_1.ManyToOne)(() => empresa_entity_1.Empresa),
+    (0, typeorm_1.ManyToOne)(() => empresa_entity_1.Empresa, { nullable: false, onDelete: 'CASCADE' }),
     (0, typeorm_1.JoinColumn)({ name: 'empresa_id' }),
     __metadata("design:type", empresa_entity_1.Empresa)
 ], CashbackLedger.prototype, "empresa", void 0);
+__decorate([
+    (0, typeorm_1.Column)(),
+    __metadata("design:type", Number)
+], CashbackLedger.prototype, "empresa_id", void 0);
 __decorate([
     (0, typeorm_1.CreateDateColumn)({ type: 'timestamptz' }),
     __metadata("design:type", Date)

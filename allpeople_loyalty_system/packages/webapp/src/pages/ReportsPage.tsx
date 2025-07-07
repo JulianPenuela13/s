@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
-import api from '../services/api';
+import api from '../api/axiosConfig';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
@@ -49,23 +49,42 @@ export const ReportsPage = () => {
     const [reportTables, setReportTables] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    
+    // --- LA CORRECCIÓN DEFINITIVA ESTÁ AQUÍ ---
+    // Usamos el token como una dependencia del useEffect.
+    // Cada vez que el token cambie (un nuevo login), este efecto se ejecutará de nuevo.
+    const token = localStorage.getItem('authToken');
 
     useEffect(() => {
+      const fetchReportData = () => {
         setLoading(true);
+        // Reseteamos los datos para evitar mostrar los antiguos mientras cargan los nuevos
+        setStats({});
+        setReportTables([]);
+        setError('');
+
         Promise.all([
             api.get('/admin/reports/dashboard-stats'),
             api.get('/admin/reports/dynamic-tables')
         ]).then(([statsRes, tablesRes]) => {
             setStats(statsRes.data);
             setReportTables(tablesRes.data);
-            setError('');
         }).catch(err => {
             console.error("Error fetching report data:", err);
             setError('No se pudieron cargar los datos de los reportes.');
         }).finally(() => {
             setLoading(false);
         });
-    }, []);
+      };
+      
+      // Solo intentamos cargar los datos si hay un token
+      if (token) {
+        fetchReportData();
+      } else {
+          setLoading(false); // Si no hay token, no hay nada que cargar
+      }
+      
+    }, [token]);
 
     
 

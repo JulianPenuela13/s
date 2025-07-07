@@ -1,14 +1,31 @@
 import { AdminService } from './admin.service';
-import { UpdateStrategySettingsDto } from './dto/update-strategy-settings.dto';
 export declare class AdminController {
     private readonly adminService;
     constructor(adminService: AdminService);
-    getStrategies(): Promise<import("../loyalty-engine/loyalty-strategy.entity").LoyaltyStrategy[]>;
-    toggleStrategy(id: string, isActive: boolean, req: any): Promise<{
-        success: boolean;
+    findAllEmpresas(): Promise<import("../empresas/entities/empresa.entity").Empresa[]>;
+    crearNuevaEmpresa(body: {
+        nombre_empresa: string;
+        plan_suscripcion: string;
+        twilio_phone_number?: string;
+        wpp_session_name?: string;
+        whatsapp_provider?: string;
+    }): Promise<import("../empresas/entities/empresa.entity").Empresa>;
+    crearAdminParaEmpresa(id: number, body: any, req: any): Promise<{
+        id: string;
+        email: string;
+        role: import("../users/user.entity").UserRole;
+        full_name: string;
+        empresa: import("../empresas/entities/empresa.entity").Empresa;
+        empresa_id: number;
+        created_at: Date;
     }>;
-    updateStrategySettings(id: string, updateDto: UpdateStrategySettingsDto, req: any): Promise<{
-        success: boolean;
+    suspenderEmpresa(id: number): Promise<{
+        message: string;
     }>;
-    getAuditLogs(): Promise<import("../audit/audit-log.entity").AuditLog[]>;
+    reactivarEmpresa(id: number): Promise<{
+        message: string;
+    }>;
+    eliminarEmpresa(id: number): Promise<{
+        message: string;
+    }>;
 }

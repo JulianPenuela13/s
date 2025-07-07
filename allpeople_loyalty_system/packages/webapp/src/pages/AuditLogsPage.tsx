@@ -1,8 +1,8 @@
 // packages/webapp/src/pages/AuditLogsPage.tsx
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api/axiosConfig';
 
 // --- Tipos de Datos ---
 interface AuditLog {
@@ -15,9 +15,7 @@ interface AuditLog {
   } | null;
 }
 
-// --- Instancia de API ---
-const token = localStorage.getItem('authToken');
-const api = axios.create({ baseURL: 'http://localhost:3000', headers: { Authorization: `Bearer ${token}` } });
+
 
 // --- NUEVA FUNCIÓN "TRADUCTORA" ---
 const formatAuditLog = (log: AuditLog): { action: string, details: string } => {

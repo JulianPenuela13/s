@@ -2,7 +2,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Client } from './client.entity';
-import { ClientsService } from './clients.service'; // Importar
+import { ClientsService } from './clients.service'; 
 import { PointsTransaction } from '../loyalty-engine/points-transaction.entity';
 import { ClientsController } from './clients.controller';
 import { LoyaltyStrategy } from '../loyalty-engine/loyalty-strategy.entity';
@@ -11,8 +11,8 @@ import { UnlockedReward } from '../rewards/unlocked-reward.entity';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Client, PointsTransaction, LoyaltyStrategy, ClientProgress, UnlockedReward,])],
-  providers: [ClientsService], // Añadir
+  providers: [ClientsService], 
   controllers: [ClientsController],
-  exports: [ClientsService], // Añadir para que otros módulos lo usen
+  exports: [ClientsService], 
 })
 export class ClientsModule {}

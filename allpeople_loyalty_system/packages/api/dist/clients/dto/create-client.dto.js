@@ -12,12 +12,17 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CreateClientDto = void 0;
 const class_validator_1 = require("class-validator");
 class CreateClientDto {
+    document_id;
     full_name;
     phone_number;
-    document_id;
-    points_balance;
+    birth_date;
 }
 exports.CreateClientDto = CreateClientDto;
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)(),
+    __metadata("design:type", String)
+], CreateClientDto.prototype, "document_id", void 0);
 __decorate([
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.IsNotEmpty)(),
@@ -26,16 +31,12 @@ __decorate([
 __decorate([
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.IsNotEmpty)(),
+    (0, class_validator_1.Length)(10, 13),
     __metadata("design:type", String)
 ], CreateClientDto.prototype, "phone_number", void 0);
 __decorate([
-    (0, class_validator_1.IsString)(),
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsDateString)(),
     __metadata("design:type", String)
-], CreateClientDto.prototype, "document_id", void 0);
-__decorate([
-    (0, class_validator_1.IsNumber)(),
-    (0, class_validator_1.IsOptional)(),
-    __metadata("design:type", Number)
-], CreateClientDto.prototype, "points_balance", void 0);
+], CreateClientDto.prototype, "birth_date", void 0);
 //# sourceMappingURL=create-client.dto.js.map

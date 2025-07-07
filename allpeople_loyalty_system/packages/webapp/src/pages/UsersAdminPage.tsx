@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api/axiosConfig';
 
 type UserRole = 'admin' | 'supervisor' | 'cashier';
 interface User {
@@ -13,11 +13,6 @@ interface User {
 }
 type UserDto = Omit<User, 'id'> & { password?: string };
 
-const token = localStorage.getItem('authToken');
-const api = axios.create({
-  baseURL: 'http://localhost:3000',
-  headers: { Authorization: `Bearer ${token}` },
-});
 
 const UserForm = ({ user, onSave, onCancel }: { user: User | null, onSave: (data: Partial<UserDto>) => void, onCancel: () => void }) => {
   const [formData, setFormData] = useState({

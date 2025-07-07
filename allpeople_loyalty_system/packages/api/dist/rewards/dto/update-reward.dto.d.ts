@@ -1,5 +1,9 @@
-import { CreateRewardDto } from './create-reward.dto';
-declare const UpdateRewardDto_base: import("@nestjs/mapped-types").MappedType<Partial<CreateRewardDto>>;
-export declare class UpdateRewardDto extends UpdateRewardDto_base {
+import { RewardType } from '../reward.entity';
+export declare class UpdateRewardDto {
+    name?: string;
+    description?: string;
+    cost_in_points?: number;
+    stock?: number;
+    is_active?: boolean;
+    type?: RewardType;
 }
-export {};

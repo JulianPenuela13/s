@@ -1,11 +1,17 @@
-import { TwilioService } from '../twilio/twilio.service';
+import { Response } from 'express';
+import { WhatsappService } from './whatsapp.service';
 import { ClientsService } from '../clients/clients.service';
-import { RewardsService } from '../rewards/rewards.service';
+import { Empresa } from '../empresas/entities/empresa.entity';
+import { Repository } from 'typeorm';
 export declare class WhatsappController {
-    private readonly twilioService;
+    private readonly whatsappService;
     private readonly clientsService;
-    private readonly rewardsService;
+    private readonly empresaRepository;
     private readonly logger;
-    constructor(twilioService: TwilioService, clientsService: ClientsService, rewardsService: RewardsService);
-    handleIncomingMessage(body: any): Promise<void>;
+    constructor(whatsappService: WhatsappService, clientsService: ClientsService, empresaRepository: Repository<Empresa>);
+    testEndpoint(): {
+        success: boolean;
+        message: string;
+    };
+    handleIncomingMessage(body: any, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
 }

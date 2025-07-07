@@ -16,65 +16,78 @@ exports.AdminController = void 0;
 const common_1 = require("@nestjs/common");
 const admin_service_1 = require("./admin.service");
 const jwt_auth_guard_1 = require("../auth/guards/jwt-auth.guard");
-const roles_guard_1 = require("../auth/guards/roles.guard");
-const roles_decorator_1 = require("../auth/decorators/roles.decorator");
-const user_entity_1 = require("../users/user.entity");
-const update_strategy_settings_dto_1 = require("./dto/update-strategy-settings.dto");
+const super_admin_guard_1 = require("../auth/guards/super-admin.guard");
 let AdminController = class AdminController {
     adminService;
     constructor(adminService) {
         this.adminService = adminService;
     }
-    getStrategies() {
-        return this.adminService.getStrategies();
+    findAllEmpresas() {
+        return this.adminService.findAllEmpresas();
     }
-    toggleStrategy(id, isActive, req) {
-        const actor = req.user;
-        return this.adminService.toggleStrategy(id, isActive, actor);
+    crearNuevaEmpresa(body) {
+        return this.adminService.crearEmpresa(body.nombre_empresa, body.plan_suscripcion);
     }
-    updateStrategySettings(id, updateDto, req) {
-        const actor = req.user;
-        return this.adminService.updateStrategySettings(id, updateDto.settings, actor);
+    crearAdminParaEmpresa(id, body, req) {
+        return this.adminService.crearAdminParaEmpresa(id, body, req.user);
     }
-    getAuditLogs() {
-        return this.adminService.getAuditLogs();
+    suspenderEmpresa(id) {
+        return this.adminService.actualizarEstadoSuscripcion(id, 'suspendida');
+    }
+    reactivarEmpresa(id) {
+        return this.adminService.actualizarEstadoSuscripcion(id, 'activa');
+    }
+    eliminarEmpresa(id) {
+        return this.adminService.eliminarEmpresa(id);
     }
 };
 exports.AdminController = AdminController;
 __decorate([
-    (0, common_1.Get)('strategies'),
+    (0, common_1.Get)('empresas'),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
-], AdminController.prototype, "getStrategies", null);
+], AdminController.prototype, "findAllEmpresas", null);
 __decorate([
-    (0, common_1.Patch)('strategies/:id/toggle'),
-    __param(0, (0, common_1.Param)('id', common_1.ParseUUIDPipe)),
-    __param(1, (0, common_1.Body)('is_active')),
-    __param(2, (0, common_1.Req)()),
+    (0, common_1.Post)('empresas'),
+    __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Boolean, Object]),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
-], AdminController.prototype, "toggleStrategy", null);
+], AdminController.prototype, "crearNuevaEmpresa", null);
 __decorate([
-    (0, common_1.Patch)('strategies/:id/settings'),
-    __param(0, (0, common_1.Param)('id', common_1.ParseUUIDPipe)),
+    (0, common_1.Post)('empresas/:id/crear-admin'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
     __param(1, (0, common_1.Body)()),
     __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, update_strategy_settings_dto_1.UpdateStrategySettingsDto, Object]),
+    __metadata("design:paramtypes", [Number, Object, Object]),
     __metadata("design:returntype", void 0)
-], AdminController.prototype, "updateStrategySettings", null);
+], AdminController.prototype, "crearAdminParaEmpresa", null);
 __decorate([
-    (0, common_1.Get)('audit-logs'),
+    (0, common_1.Patch)('empresas/:id/suspender'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [Number]),
     __metadata("design:returntype", void 0)
-], AdminController.prototype, "getAuditLogs", null);
+], AdminController.prototype, "suspenderEmpresa", null);
+__decorate([
+    (0, common_1.Patch)('empresas/:id/reactivar'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number]),
+    __metadata("design:returntype", void 0)
+], AdminController.prototype, "reactivarEmpresa", null);
+__decorate([
+    (0, common_1.Delete)('empresas/:id'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number]),
+    __metadata("design:returntype", void 0)
+], AdminController.prototype, "eliminarEmpresa", null);
 exports.AdminController = AdminController = __decorate([
-    (0, common_1.Controller)('admin'),
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
-    (0, roles_decorator_1.Roles)(user_entity_1.UserRole.ADMIN),
+    (0, common_1.Controller)('super-admin'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, super_admin_guard_1.SuperAdminGuard),
     __metadata("design:paramtypes", [admin_service_1.AdminService])
 ], AdminController);
 //# sourceMappingURL=admin.controller.js.map

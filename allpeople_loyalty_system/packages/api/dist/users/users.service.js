@@ -11,56 +11,98 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
+var UsersService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.UsersService = void 0;
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const user_entity_1 = require("./user.entity");
-let UsersService = class UsersService {
+const audit_service_1 = require("../audit/audit.service");
+let UsersService = UsersService_1 = class UsersService {
     usersRepository;
-    constructor(usersRepository) {
+    auditService;
+    logger = new common_1.Logger(UsersService_1.name);
+    constructor(usersRepository, auditService) {
         this.usersRepository = usersRepository;
+        this.auditService = auditService;
     }
-    async findOneByEmail(email) {
-        return this.usersRepository.findOne({ where: { email }, relations: ['empresa'] });
-    }
-    async create(createUserDto, empresaId) {
-        const newUser = this.usersRepository.create({
-            ...createUserDto,
-            empresa_id: empresaId,
+    async create(createUserDto, actor) {
+        const { email, password, empresa_id, ...restOfDto } = createUserDto;
+        const targetEmpresaId = empresa_id || actor.empresaId;
+        const existingUser = await this.findOneByEmail(email, targetEmpresaId);
+        if (existingUser) {
+            throw new common_1.ConflictException(`El email '${email}' ya está en uso en esa empresa.`);
+        }
+        const user = this.usersRepository.create({
+            ...restOfDto,
+            email: email,
+            password_hash: password,
+            empresa_id: targetEmpresaId,
         });
-        const savedUser = await this.usersRepository.save(newUser);
-        const { password_hash, ...result } = savedUser;
+        const savedUser = await this.usersRepository.save(user);
+        await this.auditService.logAction(actor, 'USER_CREATE', { createdUserId: savedUser.id, email: savedUser.email });
+        const { password_hash: _, ...result } = savedUser;
         return result;
     }
-    async findAll(empresaId) {
+    findAll(actor) {
         return this.usersRepository.find({
-            where: { empresa_id: empresaId },
             select: ['id', 'email', 'full_name', 'role', 'created_at', 'empresa_id'],
+            where: { empresa_id: actor.empresaId },
+            order: { full_name: 'ASC' },
         });
     }
-    async findOne(id, empresaId) {
+    async findOne(id, actor) {
         const user = await this.usersRepository.findOne({
-            where: { id, empresa_id: empresaId },
+            where: { id: id, empresa_id: actor.empresaId },
             select: ['id', 'email', 'full_name', 'role', 'created_at', 'empresa_id'],
         });
         if (!user) {
-            throw new common_1.NotFoundException(`Usuario con ID "${id}" no encontrado.`);
+            throw new common_1.NotFoundException(`Usuario con ID "${id}" no encontrado en su empresa.`);
         }
         return user;
     }
-    async remove(id, empresaId) {
-        const result = await this.usersRepository.delete({ id, empresa_id: empresaId });
+    findOneByEmail(email, empresaId) {
+        return this.usersRepository.findOneBy({ email: email, empresa_id: empresaId });
+    }
+    findForAuth(email) {
+        return this.usersRepository.find({ where: { email } });
+    }
+    async update(id, updateUserDto, actor) {
+        await this.findOne(id, actor);
+        const { password, ...restOfDto } = updateUserDto;
+        const payload = restOfDto;
+        if (password) {
+            payload.password_hash = password;
+        }
+        if (Object.keys(payload).length > 0) {
+            await this.usersRepository.update(id, payload);
+        }
+        await this.auditService.logAction(actor, 'USER_UPDATE', {
+            updatedUserId: id,
+            changes: updateUserDto
+        });
+        const updatedUserEntity = await this.usersRepository.findOneBy({ id });
+        if (!updatedUserEntity) {
+            throw new common_1.NotFoundException(`El usuario con ID ${id} desapareció después de la actualización.`);
+        }
+        const { password_hash, ...result } = updatedUserEntity;
+        return result;
+    }
+    async remove(id, actor) {
+        const userToDelete = await this.findOne(id, actor);
+        const result = await this.usersRepository.delete(id);
         if (result.affected === 0) {
             throw new common_1.NotFoundException(`Usuario con ID "${id}" no encontrado.`);
         }
+        await this.auditService.logAction(actor, 'USER_DELETE', { deletedUserId: id, email: userToDelete.email });
     }
 };
 exports.UsersService = UsersService;
-exports.UsersService = UsersService = __decorate([
+exports.UsersService = UsersService = UsersService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
-    __metadata("design:paramtypes", [typeorm_2.Repository])
+    __metadata("design:paramtypes", [typeorm_2.Repository,
+        audit_service_1.AuditService])
 ], UsersService);
 //# sourceMappingURL=users.service.js.map

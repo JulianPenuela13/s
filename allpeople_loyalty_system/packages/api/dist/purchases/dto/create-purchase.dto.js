@@ -12,17 +12,18 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CreatePurchaseDto = void 0;
 const class_validator_1 = require("class-validator");
 class CreatePurchaseDto {
-    client_id;
+    client_document_id;
     amount;
 }
 exports.CreatePurchaseDto = CreatePurchaseDto;
 __decorate([
-    (0, class_validator_1.IsUUID)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)(),
     __metadata("design:type", String)
-], CreatePurchaseDto.prototype, "client_id", void 0);
+], CreatePurchaseDto.prototype, "client_document_id", void 0);
 __decorate([
     (0, class_validator_1.IsNumber)(),
-    (0, class_validator_1.Min)(0),
+    (0, class_validator_1.Min)(1),
     __metadata("design:type", Number)
 ], CreatePurchaseDto.prototype, "amount", void 0);
 //# sourceMappingURL=create-purchase.dto.js.map

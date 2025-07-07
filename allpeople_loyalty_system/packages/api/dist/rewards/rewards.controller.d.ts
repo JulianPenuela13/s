@@ -5,7 +5,7 @@ export declare class RewardsController {
     private readonly rewardsService;
     constructor(rewardsService: RewardsService);
     create(createRewardDto: CreateRewardDto, req: any): Promise<import("./reward.entity").Reward>;
-    findAll(req: any): Promise<import("./reward.entity").Reward[]>;
+    findAll(context: string, req: any): Promise<import("./reward.entity").Reward[]>;
     findOne(id: string, req: any): Promise<import("./reward.entity").Reward>;
     update(id: string, updateRewardDto: UpdateRewardDto, req: any): Promise<import("./reward.entity").Reward>;
     remove(id: string, req: any): Promise<void>;

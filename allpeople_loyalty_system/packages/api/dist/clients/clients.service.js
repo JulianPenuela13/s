@@ -17,51 +17,132 @@ const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const client_entity_1 = require("./client.entity");
+const points_transaction_entity_1 = require("../loyalty-engine/points-transaction.entity");
+const loyalty_strategy_entity_1 = require("../loyalty-engine/loyalty-strategy.entity");
+const client_progress_entity_1 = require("../loyalty-engine/client-progress.entity");
+const unlocked_reward_entity_1 = require("../rewards/unlocked-reward.entity");
+const event_emitter_1 = require("@nestjs/event-emitter");
 let ClientsService = class ClientsService {
     clientsRepository;
-    constructor(clientsRepository) {
+    pointsRepository;
+    strategyRepository;
+    progressRepository;
+    unlockedRewardRepo;
+    eventEmitter;
+    constructor(clientsRepository, pointsRepository, strategyRepository, progressRepository, unlockedRewardRepo, eventEmitter) {
         this.clientsRepository = clientsRepository;
+        this.pointsRepository = pointsRepository;
+        this.strategyRepository = strategyRepository;
+        this.progressRepository = progressRepository;
+        this.unlockedRewardRepo = unlockedRewardRepo;
+        this.eventEmitter = eventEmitter;
     }
-    async findOneByPhoneAcrossTenants(phoneNumber) {
-        return this.clientsRepository.findOne({ where: { phone_number: phoneNumber } });
-    }
-    async create(createClientDto, empresaId) {
+    async create(createClientDto, actor) {
+        const empresaId = actor.empresaId;
+        const { document_id, phone_number } = createClientDto;
+        const existingClient = await this.clientsRepository.findOne({
+            where: [
+                { document_id, empresa_id: empresaId },
+                { phone_number, empresa_id: empresaId },
+            ],
+        });
+        if (existingClient) {
+            throw new common_1.ConflictException('Ya existe un cliente con el mismo documento o teléfono en su empresa.');
+        }
+        if (createClientDto.phone_number) {
+            createClientDto.phone_number = String(createClientDto.phone_number).replace(/\D/g, '');
+        }
         const newClient = this.clientsRepository.create({
             ...createClientDto,
-            empresa: { id: empresaId },
+            empresa_id: empresaId,
         });
-        return this.clientsRepository.save(newClient);
+        const savedClient = await this.clientsRepository.save(newClient);
+        this.eventEmitter.emit('client.created', savedClient);
+        return savedClient;
     }
-    async findAll(empresaId) {
-        return this.clientsRepository.find({
-            where: { empresa_id: empresaId },
-        });
-    }
-    async findOne(id, empresaId) {
-        const client = await this.clientsRepository.findOne({
-            where: { id, empresa_id: empresaId },
-        });
+    async findOne(id, actor) {
+        const client = await this.clientsRepository.findOneBy({ id: id, empresa_id: actor.empresaId });
         if (!client) {
-            throw new common_1.NotFoundException(`Cliente con ID "${id}" no encontrado.`);
+            throw new common_1.NotFoundException(`Cliente con ID "${id}" no encontrado en su empresa.`);
         }
         return client;
     }
-    async update(id, updateClientDto, empresaId) {
-        const client = await this.findOne(id, empresaId);
-        const updatedClient = this.clientsRepository.merge(client, updateClientDto);
-        return this.clientsRepository.save(updatedClient);
-    }
-    async remove(id, empresaId) {
-        const result = await this.clientsRepository.delete({ id, empresa_id: empresaId });
-        if (result.affected === 0) {
-            throw new common_1.NotFoundException(`Cliente con ID "${id}" no encontrado.`);
+    async getClientSummary(documentId, actor) {
+        const client = await this.clientsRepository.findOneBy({ document_id: documentId, empresa_id: actor.empresaId });
+        if (!client) {
+            throw new common_1.NotFoundException(`Cliente con cédula ${documentId} no encontrado en su empresa.`);
         }
+        const pointsResult = await this.pointsRepository
+            .createQueryBuilder('tx')
+            .select('SUM(tx.points_change)', 'total_points')
+            .where('tx.clientId = :clientId', { clientId: client.id })
+            .andWhere('tx.empresa_id = :empresaId', { empresaId: actor.empresaId })
+            .getRawOne();
+        const totalPoints = parseInt(pointsResult?.total_points, 10) || 0;
+        return {
+            ...client,
+            total_points: totalPoints,
+        };
+    }
+    async findOneByPhone(phone, actor) {
+        return this.clientsRepository.findOneBy({ phone_number: phone, empresa_id: actor.empresaId });
+    }
+    async getClientProgressSummary(clientId, actor) {
+        await this.findOne(clientId, actor);
+        const empresaId = actor.empresaId;
+        const purchaseCountStrategies = await this.strategyRepository
+            .createQueryBuilder('strategy')
+            .where('strategy.is_active = :isActive', { isActive: true })
+            .andWhere('strategy.empresa_id = :empresaId', { empresaId })
+            .andWhere("(strategy.settings ->> 'required_purchases' IS NOT NULL OR strategy.settings ->> 'trigger_on_purchase_count' IS NOT NULL)")
+            .getMany();
+        if (purchaseCountStrategies.length === 0) {
+            return [];
+        }
+        const clientProgress = await this.progressRepository.find({
+            where: {
+                client: { id: clientId },
+                strategy: { id: (0, typeorm_2.In)(purchaseCountStrategies.map(s => s.id)) },
+                empresa_id: empresaId,
+            },
+            relations: ['strategy'],
+        });
+        return purchaseCountStrategies.map(strategy => {
+            const progress = clientProgress.find(p => p.strategy?.id === strategy.id);
+            return {
+                strategy_name: strategy.name,
+                current_step: progress ? progress.progress_value : 0,
+                target_step: strategy.settings.required_purchases || strategy.settings.trigger_on_purchase_count,
+            };
+        });
+    }
+    async getUnlockedRewards(clientId, actor) {
+        await this.findOne(clientId, actor);
+        return this.unlockedRewardRepo.find({
+            where: {
+                client: { id: clientId },
+                empresa_id: actor.empresaId,
+            },
+            relations: ['reward'],
+        });
+    }
+    async findOneByDocument(documentId, actor) {
+        return this.clientsRepository.findOneBy({ document_id: documentId, empresa_id: actor.empresaId });
     }
 };
 exports.ClientsService = ClientsService;
 exports.ClientsService = ClientsService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(client_entity_1.Client)),
-    __metadata("design:paramtypes", [typeorm_2.Repository])
+    __param(1, (0, typeorm_1.InjectRepository)(points_transaction_entity_1.PointsTransaction)),
+    __param(2, (0, typeorm_1.InjectRepository)(loyalty_strategy_entity_1.LoyaltyStrategy)),
+    __param(3, (0, typeorm_1.InjectRepository)(client_progress_entity_1.ClientProgress)),
+    __param(4, (0, typeorm_1.InjectRepository)(unlocked_reward_entity_1.UnlockedReward)),
+    __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository,
+        typeorm_2.Repository,
+        typeorm_2.Repository,
+        typeorm_2.Repository,
+        event_emitter_1.EventEmitter2])
 ], ClientsService);
 //# sourceMappingURL=clients.service.js.map

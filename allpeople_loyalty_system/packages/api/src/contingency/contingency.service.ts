@@ -5,6 +5,7 @@ import * as Papa from 'papaparse';
 import { ClientsService } from '../clients/clients.service';
 import { PurchasesService } from '../purchases/purchases.service';
 import { CreateClientDto } from '../clients/dto/create-client.dto';
+import { Actor } from '../audit/actor.interface'; // 1. Importamos la interfaz Actor
 
 @Injectable()
 export class ContingencyService {
@@ -15,7 +16,8 @@ export class ContingencyService {
     private readonly purchasesService: PurchasesService,
   ) {}
 
-  async processContingencyFile(fileBuffer: Buffer) {
+  // 2. El método ahora recibe el 'actor' que sube el archivo
+  async processContingencyFile(fileBuffer: Buffer, actor: Actor) {
     const fileContent = fileBuffer.toString('utf-8');
     const results = { processed: 0, failed: 0, errors: [] as string[] };
 
@@ -26,13 +28,7 @@ export class ContingencyService {
 
     for (const row of parsed.data) {
       try {
-        // Nos aseguramos de que la fila sea un objeto antes de procesarla
-        if (typeof row !== 'object' || row === null) {
-          continue;
-        }
-
-        // Si la fila está completamente vacía o solo contiene espacios, la ignoramos silenciosamente
-        if (Object.values(row).every(value => value === null || String(value).trim() === '')) {
+        if (typeof row !== 'object' || row === null || Object.values(row).every(v => !v)) {
           continue;
         }
 
@@ -42,15 +38,15 @@ export class ContingencyService {
           throw new BadRequestException(`Fila inválida, faltan datos de Cedula o Valor: ${JSON.stringify(row)}`);
         }
 
-        let client = await this.clientsService.findOneByDocument(Cedula);
+        // 3. Buscamos al cliente DENTRO DE LA EMPRESA DEL ACTOR
+        let client = await this.clientsService.findOneByDocument(Cedula, actor);
 
         if (!client) {
-          this.logger.log(`Client with document ${Cedula} not found. Attempting to create...`);
+          this.logger.log(`Cliente con documento ${Cedula} no encontrado en empresa ${actor.empresaId}. Intentando crear...`);
           if (!NombreCompleto || !Telefono) {
-            throw new BadRequestException(`Cliente nuevo con cédula ${Cedula} no tiene NombreCompleto y Telefono en el archivo.`);
+            throw new BadRequestException(`Cliente nuevo con cédula ${Cedula} no tiene NombreCompleto y Telefono.`);
           }
           
-          // Limpiamos CUALQUIER símbolo del teléfono para estandarizarlo
           const cleanTelefono = String(Telefono).replace(/\D/g, '');
 
           const newClientData: CreateClientDto = {
@@ -60,32 +56,34 @@ export class ContingencyService {
           };
 
           if (FechaNacimiento) {
+            // ... (tu lógica para formatear la fecha es correcta y se mantiene)
             const parts = String(FechaNacimiento).split('/');
             if (parts.length === 3) {
               const [day, month, year] = parts;
-              // Re-armamos la fecha en el formato YYYY-MM-DD
               newClientData.birth_date = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
             }
           }
-
-          client = await this.clientsService.create(newClientData);
-          this.logger.log(`Client ${client.full_name} created successfully.`);
+          
+          // 4. Creamos el nuevo cliente, PASANDO EL ACTOR para que se asigne a la empresa correcta
+          client = await this.clientsService.create(newClientData, actor);
+          this.logger.log(`Cliente ${client.full_name} creado para la empresa ${actor.empresaId}.`);
         }
 
+        // 5. Creamos la compra, PASANDO EL ACTOR para la auditoría y la asignación de empresa
         await this.purchasesService.createPurchase({
           client_document_id: client.document_id,
           amount: Number(Valor),
-        });
+        }, actor);
         
         results.processed++;
       } catch (error: any) {
-        this.logger.error(`Failed to process row: ${JSON.stringify(row)}`, error.message);
+        this.logger.error(`Error al procesar fila: ${JSON.stringify(row)}`, error.stack);
         results.failed++;
         results.errors.push(`Fila ${JSON.stringify(row)}: ${error.message}`);
       }
     }
     
-    this.logger.log(`Contingency file processed: ${results.processed} successful, ${results.failed} failed.`);
+    this.logger.log(`Archivo de contingencia para empresa ${actor.empresaId} procesado: ${results.processed} exitosos, ${results.failed} fallidos.`);
     return results;
   }
 }

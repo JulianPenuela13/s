@@ -1,16 +1,17 @@
 // packages/api/src/users/user.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, BeforeInsert } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, BeforeInsert, Index, ManyToOne, JoinColumn } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { Empresa } from '../empresas/entities/empresa.entity';
-import { ManyToOne, JoinColumn } from 'typeorm';
 
 export enum UserRole {
   ADMIN = 'admin',
   SUPERVISOR = 'supervisor',
   CASHIER = 'cashier',
+  SUPER_ADMIN = 'super_admin', // La definición oficial es en minúsculas
 }
 
 @Entity('users')
+@Index(['email', 'empresa_id'], { unique: true })
 export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -24,13 +25,11 @@ export class User {
   @Column({
     type: 'enum',
     enum: UserRole,
-    default: UserRole.CASHIER,
   })
-  role: UserRole;
+  role: UserRole; // La columna en la base de datos se llama 'role' (con 'e')
 
   @Column()
   full_name: string;
-
 
   @ManyToOne(() => Empresa, { nullable: false, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'empresa_id' })
@@ -39,12 +38,13 @@ export class User {
   @Column()
   empresa_id: number;
 
-
   @CreateDateColumn({ type: 'timestamptz' })
   created_at: Date;
 
   @BeforeInsert()
   async hashPassword() {
-    this.password_hash = await bcrypt.hash(this.password_hash, 10);
+    if (this.password_hash) {
+      this.password_hash = await bcrypt.hash(this.password_hash, 10);
+    }
   }
 }

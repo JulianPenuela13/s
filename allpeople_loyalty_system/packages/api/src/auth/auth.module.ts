@@ -6,14 +6,20 @@ import { UsersModule } from '../users/users.module';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
+import { ConfigModule, ConfigService } from '@nestjs/config'; // <-- 1. Import Config classes
 
 @Module({
   imports: [
     UsersModule,
     PassportModule,
-    JwtModule.register({
-      secret: 'SUPER_SECRET_KEY_CHANGE_IN_PROD', // ¡Cambiar esto por una variable de entorno!
-      signOptions: { expiresIn: '8h' },
+    // --- 2. Make the JWT registration asynchronous ---
+    JwtModule.registerAsync({
+      imports: [ConfigModule], // Import ConfigModule here
+      inject: [ConfigService], // Inject the ConfigService
+      useFactory: async (configService: ConfigService) => ({
+        secret: configService.get<string>('JWT_SECRET'), // <-- 3. Get secret from .env
+        signOptions: { expiresIn: '8h' },
+      }),
     }),
   ],
   providers: [AuthService, JwtStrategy],

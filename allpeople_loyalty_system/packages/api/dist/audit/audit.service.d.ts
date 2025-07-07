@@ -1,9 +1,9 @@
 import { Repository } from 'typeorm';
 import { AuditLog } from './audit-log.entity';
 export interface Actor {
-    userId: string;
-    email: string;
-    role: string;
+    userId: number;
+    rol: string;
+    empresaId: number;
 }
 export declare class AuditService {
     private auditRepository;

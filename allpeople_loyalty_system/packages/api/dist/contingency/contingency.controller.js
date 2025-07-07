@@ -17,28 +17,17 @@ const common_1 = require("@nestjs/common");
 const platform_express_1 = require("@nestjs/platform-express");
 const contingency_service_1 = require("./contingency.service");
 const jwt_auth_guard_1 = require("../auth/guards/jwt-auth.guard");
-const Papa = require("papaparse");
+const roles_guard_1 = require("../auth/guards/roles.guard");
+const roles_decorator_1 = require("../auth/decorators/roles.decorator");
+const user_entity_1 = require("../users/user.entity");
 let ContingencyController = class ContingencyController {
     contingencyService;
     constructor(contingencyService) {
         this.contingencyService = contingencyService;
     }
-    async uploadContingencyFile(file, req) {
-        if (!file) {
-            throw new common_1.BadRequestException('No se ha subido ningún archivo CSV.');
-        }
-        const empresaId = req.user.empresaId;
-        if (!empresaId) {
-            throw new common_1.BadRequestException('No se pudo determinar la empresa del usuario.');
-        }
-        const csvContent = file.buffer.toString('utf-8');
-        const parseResult = Papa.parse(csvContent, { header: true, skipEmptyLines: true });
-        for (const row of parseResult.data) {
-            if (row.Cedula && row.Valor) {
-                await this.contingencyService.processContingency(row.Cedula, row.Valor, empresaId);
-            }
-        }
-        return { message: 'Archivo de contingencia procesado exitosamente.' };
+    async uploadFile(file, req) {
+        const actor = req.user;
+        return this.contingencyService.processContingencyFile(file.buffer, actor);
     }
 };
 exports.ContingencyController = ContingencyController;
@@ -50,10 +39,11 @@ __decorate([
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
-], ContingencyController.prototype, "uploadContingencyFile", null);
+], ContingencyController.prototype, "uploadFile", null);
 exports.ContingencyController = ContingencyController = __decorate([
-    (0, common_1.Controller)('contingency'),
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.Controller)('admin/contingency'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(user_entity_1.UserRole.ADMIN),
     __metadata("design:paramtypes", [contingency_service_1.ContingencyService])
 ], ContingencyController);
 //# sourceMappingURL=contingency.controller.js.map

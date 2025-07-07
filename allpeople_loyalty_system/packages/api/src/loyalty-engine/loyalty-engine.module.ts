@@ -7,7 +7,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { PointsTransaction } from './points-transaction.entity';
 import { LoyaltyStrategy } from './loyalty-strategy.entity';
 import { LoyaltyEngineService } from './loyalty-engine.service';
-import { StrategiesSeeder } from './strategies.seeder';
+
 import { CashbackLedger } from './cashback-ledger.entity';
 import { ClientProgress } from './client-progress.entity';
 import { UnlockedReward } from '../rewards/unlocked-reward.entity'; // <-- 1. IMPORTAR LA NUEVA ENTIDAD
@@ -26,7 +26,7 @@ import { Reward } from '../rewards/reward.entity';
 
     ]),
   ],
-  providers: [LoyaltyEngineService, StrategiesSeeder],
+  providers: [LoyaltyEngineService],
   exports: [LoyaltyEngineService],
 })
 export class LoyaltyEngineModule {}

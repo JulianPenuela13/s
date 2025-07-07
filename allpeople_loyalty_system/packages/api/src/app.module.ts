@@ -9,13 +9,14 @@ import { typeOrmAsyncConfig } from './config/typeorm.config';
 
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
-import { AdminModule } from './admin/admin.module';
+import { StrategiesModule } from './strategies/strategies.module'; // <-- IMPORTACIÓN CORREGIDA
+import { AdminModule } from './admin/admin.module'; // El módulo para el Super-Admin
 import { ClientsModule } from './clients/clients.module';
 import { PurchasesModule } from './purchases/purchases.module';
 import { LoyaltyEngineModule } from './loyalty-engine/loyalty-engine.module';
 import { RewardsModule } from './rewards/rewards.module';
 import { RedemptionsModule } from './redemptions/redemptions.module';
-import { ReportsModule } from './reports/reports.module'; // Importar
+import { ReportsModule } from './reports/reports.module';
 import { WhatsappModule } from './whatsapp/whatsapp.module';
 import { AuditModule } from './audit/audit.module';
 import { TasksModule } from './tasks/tasks.module';
@@ -35,13 +36,14 @@ import { ContingencyModule } from './contingency/contingency.module';
     // Módulos de nuestra aplicación
     UsersModule,
     AuthModule,
+    StrategiesModule, // <-- NOMBRE CORREGIDO EN EL ARRAY
     AdminModule,
     ClientsModule,
     PurchasesModule,
     LoyaltyEngineModule,
     RewardsModule,
     RedemptionsModule,
-    ReportsModule, // Asegúrate de que esté en la lista
+    ReportsModule,
     WhatsappModule,
     AuditModule,
     TasksModule,

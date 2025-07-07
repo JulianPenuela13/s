@@ -18,5 +18,5 @@ export class UpdateUserDto {
   @IsString()
   @IsOptional()
   @MinLength(8)
-  password?: string; // Permitimos cambiar la contraseña si se provee una nueva
+  password?: string; 
 }

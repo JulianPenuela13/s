@@ -15,65 +15,34 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.PurchasesController = void 0;
 const common_1 = require("@nestjs/common");
 const purchases_service_1 = require("./purchases.service");
-const jwt_auth_guard_1 = require("../auth/guards/jwt-auth.guard");
 const create_purchase_dto_1 = require("./dto/create-purchase.dto");
+const jwt_auth_guard_1 = require("../auth/guards/jwt-auth.guard");
+const roles_guard_1 = require("../auth/guards/roles.guard");
+const roles_decorator_1 = require("../auth/decorators/roles.decorator");
+const user_entity_1 = require("../users/user.entity");
 let PurchasesController = class PurchasesController {
     purchasesService;
     constructor(purchasesService) {
         this.purchasesService = purchasesService;
     }
     create(createPurchaseDto, req) {
-        const { empresaId } = req.user;
-        return this.purchasesService.create(createPurchaseDto, empresaId);
-    }
-    findAll(req) {
-        const { empresaId } = req.user;
-        return this.purchasesService.findAll(empresaId);
-    }
-    findOne(id, req) {
-        const { empresaId } = req.user;
-        return this.purchasesService.findOne(id, empresaId);
-    }
-    remove(id, req) {
-        const { empresaId } = req.user;
-        return this.purchasesService.remove(id, empresaId);
+        const actor = req.user;
+        return this.purchasesService.createPurchase(createPurchaseDto, actor);
     }
 };
 exports.PurchasesController = PurchasesController;
 __decorate([
     (0, common_1.Post)(),
-    __param(0, (0, common_1.Body)()),
+    (0, roles_decorator_1.Roles)(user_entity_1.UserRole.ADMIN, user_entity_1.UserRole.CASHIER),
+    __param(0, (0, common_1.Body)(new common_1.ValidationPipe())),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [create_purchase_dto_1.CreatePurchaseDto, Object]),
     __metadata("design:returntype", void 0)
 ], PurchasesController.prototype, "create", null);
-__decorate([
-    (0, common_1.Get)(),
-    __param(0, (0, common_1.Req)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
-    __metadata("design:returntype", void 0)
-], PurchasesController.prototype, "findAll", null);
-__decorate([
-    (0, common_1.Get)(':id'),
-    __param(0, (0, common_1.Param)('id', common_1.ParseUUIDPipe)),
-    __param(1, (0, common_1.Req)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
-    __metadata("design:returntype", void 0)
-], PurchasesController.prototype, "findOne", null);
-__decorate([
-    (0, common_1.Delete)(':id'),
-    __param(0, (0, common_1.Param)('id', common_1.ParseUUIDPipe)),
-    __param(1, (0, common_1.Req)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
-    __metadata("design:returntype", void 0)
-], PurchasesController.prototype, "remove", null);
 exports.PurchasesController = PurchasesController = __decorate([
     (0, common_1.Controller)('purchases'),
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
     __metadata("design:paramtypes", [purchases_service_1.PurchasesService])
 ], PurchasesController);
 //# sourceMappingURL=purchases.controller.js.map
