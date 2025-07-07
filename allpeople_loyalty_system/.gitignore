@@ -1,11 +1,13 @@
-# Node.js
+
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 package-lock.json
 
-# Docker
+
 docker-compose.override.yml
 docker-compose.dev.yml
 docker-compose.prod.yml
+
+node_modules/
